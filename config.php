@@ -1,12 +1,20 @@
 <?php
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json");
+
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "database_smk_1";
+$db   = "database_smk_2";
+// $db   = "skaduta_presensi";
 
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = mysqli_connect($host, $user, $pass, $db);
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+if (!$conn) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal koneksi database"
+    ]);
+    exit;
 }
 ?>

@@ -1,31 +1,42 @@
 <?php
 include "config.php";
-include "utils.php";
 
-$nip_nisn = $_POST['nip_nisn']; 
-$password = $_POST['password'];
+$input = $_POST["input"] ?? '';
+$password = $_POST["password"] ?? '';
 
-$sql = "SELECT * FROM users WHERE nip_nisn='$nip_nisn' LIMIT 1";
-$result = $conn->query($sql);
-
-if ($result->num_rows == 0) {
-    echo json_encode(["status" => false, "message" => "Akun tidak ditemukan"]);
+if ($input == "" || $password == "") {
+    echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
     exit;
 }
 
-$user = $result->fetch_assoc();
+$sql = "SELECT * FROM users 
+        WHERE username='$input' 
+        OR nip_nisn='$input'";
 
-if (verifyPass($password, $user['password'])) {
-    echo json_encode([
-        "status" => true,
-        "message" => "Login berhasil",
-        "data" => [
-            "id" => $user["id"],
-            "nama" => $user["nama_lengkap"],
-            "role" => $user["role"]
-        ]
-    ]);
-} else {
-    echo json_encode(["status" => false, "message" => "Password salah"]);
+$run = mysqli_query($conn, $sql);
+
+if (mysqli_num_rows($run) == 0) {
+    echo json_encode(["status" => "error", "message" => "Akun tidak ditemukan"]);
+    exit;
 }
+
+$user = mysqli_fetch_assoc($run);
+
+// verifikasi password
+if (!password_verify($password, $user["password"])) {
+    echo json_encode(["status" => "error", "message" => "Password salah"]);
+    exit;
+}
+
+echo json_encode([
+    "status" => "success",
+    "message" => "Login berhasil",
+    "data" => [
+        "id" => $user["id"],
+        "username" => $user["username"],
+        "nama_lengkap" => $user["nama_lengkap"],
+        "nip_nisn" => $user["nip_nisn"],
+        "role" => $user["role"]
+    ]
+]);
 ?>

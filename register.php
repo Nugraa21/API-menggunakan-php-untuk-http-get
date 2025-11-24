@@ -1,37 +1,46 @@
 <?php
 include "config.php";
-include "utils.php";
 
-$nama       = $_POST['nama_lengkap'];
-$nip_nisn   = $_POST['nip_nisn'];
-$password   = $_POST['password'];
-$role       = $_POST['role']; // user / admin / superadmin
+$username = $_POST["username"] ?? '';
+$nama = $_POST["nama_lengkap"] ?? '';
+$nip_nisn = $_POST["nip_nisn"] ?? '';
+$password_raw = $_POST["password"] ?? '';
+$role = $_POST["role"] ?? 'user';
 
-// Validasi admin & superadmin hanya boleh ada 1
+if ($username == "" || $nama == "" || $password_raw == "") {
+    echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
+    exit;
+}
+
+$password = password_hash($password_raw, PASSWORD_DEFAULT);
+
+// Cek admin hanya boleh 1
 if ($role == "admin") {
-    $cek = $conn->query("SELECT * FROM users WHERE role='admin'");
-    if ($cek->num_rows > 0) {
-        echo json_encode(["status" => false, "message" => "Admin sudah ada"]);
+    $cek = mysqli_query($conn, "SELECT id FROM users WHERE role='admin'");
+    if (mysqli_num_rows($cek) > 0) {
+        echo json_encode(["status" => "error", "message" => "Admin sudah ada"]);
         exit;
     }
 }
 
+// Cek superadmin hanya boleh 1
 if ($role == "superadmin") {
-    $cek = $conn->query("SELECT * FROM users WHERE role='superadmin'");
-    if ($cek->num_rows > 0) {
-        echo json_encode(["status" => false, "message" => "Super Admin sudah ada"]);
+    $cek = mysqli_query($conn, "SELECT id FROM users WHERE role='superadmin'");
+    if (mysqli_num_rows($cek) > 0) {
+        echo json_encode(["status" => "error", "message" => "Superadmin sudah ada"]);
         exit;
     }
 }
 
-$hash = hashPass($password);
+$sql = "INSERT INTO users (username, nama_lengkap, nip_nisn, password, role)
+        VALUES ('$username', '$nama', '$nip_nisn', '$password', '$role')";
 
-$sql = "INSERT INTO users (nama_lengkap, nip_nisn, password, role)
-        VALUES ('$nama', '$nip_nisn', '$hash', '$role')";
-
-if ($conn->query($sql) === TRUE) {
-    echo json_encode(["status" => true, "message" => "Register berhasil"]);
+if (mysqli_query($conn, $sql)) {
+    echo json_encode(["status" => "success", "message" => "Akun berhasil dibuat"]);
 } else {
-    echo json_encode(["status" => false, "message" => "Gagal register"]);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal daftar: " . mysqli_error($conn)
+    ]);
 }
 ?>
