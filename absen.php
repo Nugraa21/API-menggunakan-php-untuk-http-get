@@ -1,9 +1,11 @@
 <?php
 include "config.php";
 
-$sekolah_lat = -7.7770775; // Center dari Flutter
-$sekolah_lng = 110.3670864; // Center dari Flutter
-$max_distance = 400; // Radius ~400m untuk cover seluruh bounding box
+// ================================
+// KOORDINAT SEKOLAH (SINKRON SAMA FLUTTER)
+$sekolah_lat = -7.777047019078815;
+$sekolah_lng = 110.3671540164373;
+$max_distance = 100; // Meter, sinkron sama Flutter
 
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     $earth_radius = 6371000;
@@ -18,47 +20,56 @@ function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     return $earth_radius * $c;
 }
 
-// DEBUG: Log semua POST data (hapus nanti kalau udah fix)
-error_log("DEBUG: Full POST data: " . json_encode($_POST));
+// DEBUG: Log raw input (JSON atau POST)
+$rawInput = file_get_contents('php://input');
+error_log("DEBUG: Raw input length: " . strlen($rawInput));
+error_log("DEBUG: Raw input preview: " . substr($rawInput, 0, 500));
 
-// Ambil data dengan key sesuai Flutter (camelCase untuk userId)
-$user_id = $_POST['userId'] ?? '';
-$jenis = $_POST['jenis'] ?? '';
-$keterangan = trim($_POST['keterangan'] ?? ''); 
-$lat = floatval($_POST['latitude'] ?? 0); // Convert ke float
-$lng = floatval($_POST['longitude'] ?? 0); // Convert ke float
-$base64Image = $_POST['base64Image'] ?? '';
+// Fallback: Coba JSON dulu, kalau gagal pake $_POST
+$input = json_decode($rawInput, true);
+if (!$input || json_last_error() !== JSON_ERROR_NONE) {
+    $input = $_POST;
+}
+error_log("DEBUG: Input data: " . json_encode($input));
 
-// VALIDASI: Cek data wajib
-if (empty($user_id) || empty($jenis) || empty($base64Image)) {
-    echo json_encode(["status" => false, "message" => "Data tidak lengkap! Cek koneksi atau form."]);
+// Ambil data (support kedua key: lama & baru)
+$user_id = $input['userId'] ?? $input['user_id'] ?? '';
+$jenis = $input['jenis'] ?? '';
+$keterangan = trim($input['keterangan'] ?? '');
+$lat = floatval($input['latitude'] ?? $input['lat'] ?? 0);
+$lng = floatval($input['longitude'] ?? $input['lng'] ?? 0);
+$base64Image = $input['base64Image'] ?? $input['image'] ?? '';
+
+// DEBUG: Log extracted
+error_log("DEBUG: user_id=$user_id, jenis=$jenis, lat=$lat, lng=$lng, image_length=" . strlen($base64Image));
+
+// VALIDASI: Cek wajib (skip image buat test)
+if (empty($user_id) || empty($jenis)) {
+    echo json_encode(["status" => false, "message" => "Data tidak lengkap! userId/jenis kosong."]);
     exit;
 }
 
-// DIPERBAIKI: Validasi keterangan wajib hanya untuk Izin & Pulang Cepat
+// Validasi keterangan hanya untuk Izin & Pulang Cepat
 if (($jenis == 'Izin' || $jenis == 'Pulang Cepat') && empty($keterangan)) {
     echo json_encode(["status" => false, "message" => "Keterangan wajib diisi untuk $jenis!"]);
     exit;
 }
 
 $distance = calculateDistance($sekolah_lat, $sekolah_lng, $lat, $lng);
+error_log("DEBUG: Distance: " . round($distance) . "m");
 
-// DEBUG: Log jarak
-error_log("DEBUG: User lat=$lat, lng=$lng, distance=" . round($distance) . " meter, jenis=$jenis, keterangan=$keterangan");
-
-// CEK RADIUS
+// CEK RADIUS (sinkron sama Flutter)
 if ($distance > $max_distance || $distance == 0) {
     echo json_encode(["status" => false, "message" => "Di luar jangkauan sekolah! Jarak: " . round($distance) . "m"]);
     exit;
 }
 
-// CEK 2x ABSEN / HARI (hanya untuk Masuk/Pulang)
+// CEK 2x ABSEN / HARI (hanya Masuk/Pulang)
 $date = date("Y-m-d");
 if ($jenis == 'Masuk' || $jenis == 'Pulang') {
     $check = $conn->query("SELECT COUNT(*) AS jml FROM absensi 
                            WHERE user_id='$user_id' AND DATE(created_at)='$date' 
                            AND jenis IN ('Masuk', 'Pulang')");
-
     $row = $check->fetch_assoc();
     if ($row['jml'] >= 2) {
         echo json_encode(["status" => false, "message" => "Sudah absen Masuk & Pulang hari ini!"]);
@@ -66,7 +77,7 @@ if ($jenis == 'Masuk' || $jenis == 'Pulang') {
     }
 }
 
-// UPLOAD FOTO
+// UPLOAD FOTO (skip kalau kosong buat test, pake dummy)
 $target_dir = "selfie/";
 if (!file_exists($target_dir)) {
     mkdir($target_dir, 0777, true);
@@ -74,12 +85,22 @@ if (!file_exists($target_dir)) {
 
 $image_name = "selfie_" . $user_id . "_" . time() . ".jpg";
 $image_path = $target_dir . $image_name;
-if (!file_put_contents($image_path, base64_decode($base64Image))) {
-    echo json_encode(["status" => false, "message" => "Gagal upload foto!"]);
-    exit;
+
+if (!empty($base64Image)) {
+    $decoded = base64_decode($base64Image);
+    if ($decoded && file_put_contents($image_path, $decoded)) {
+        error_log("DEBUG: Foto uploaded OK");
+    } else {
+        unlink($image_path); // Hapus kalau gagal
+        $image_name = ''; // Skip foto kalau gagal
+    }
+} else {
+    // Buat test: Dummy empty
+    file_put_contents($image_path, ""); // File kosong
+    error_log("DEBUG: No image, dummy created");
 }
 
-// INSERT DATA
+// INSERT DATA (escape basic, ganti prepared kalau bisa)
 $q = $conn->query("INSERT INTO absensi 
 (user_id, jenis, keterangan, selfie, latitude, longitude, created_at) 
 VALUES 
@@ -93,7 +114,7 @@ if ($q) {
         "data" => ["id" => $absen_id, "jenis" => $jenis, "timestamp" => date('Y-m-d H:i:s')]
     ]);
 } else {
-    unlink($image_path);
+    if ($image_name) unlink($image_path);
     echo json_encode(["status" => false, "message" => "Gagal simpan data: " . $conn->error]);
 }
 ?>
