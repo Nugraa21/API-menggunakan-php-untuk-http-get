@@ -1,6 +1,5 @@
-<!-- presensi_pending.php -->
-
 <?php
+// <!-- presensi_pending.php -->
 include 'config.php';
 
 header('Content-Type: application/json');

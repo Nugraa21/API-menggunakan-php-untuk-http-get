@@ -1,6 +1,5 @@
-<!-- presensi_user_history.php -->
-
 <?php
+// <!-- presensi_user_history.php -->
 include 'config.php';
 
 $user_id = $_GET['user_id'];

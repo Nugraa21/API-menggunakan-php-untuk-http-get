@@ -1,6 +1,5 @@
-<!-- absen_approve.php -->
-
 <?php
+// <!-- absen_approve.php -->
 include "config.php";
 
 $id = $_POST['id'];

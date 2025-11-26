@@ -1,6 +1,5 @@
-<!-- absen_admin_list.php -->
-
 <?php
+// <!-- absen_admin_list.php -->
 include "config.php";
 
 $q = $conn->query("SELECT absensi.*, users.nama_lengkap 

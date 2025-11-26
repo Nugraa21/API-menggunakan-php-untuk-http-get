@@ -1,6 +1,5 @@
-<!-- update_user.php -->
-
 <?php
+// <!-- update_user.php -->
 include "config.php";
 
 $id = $_POST["id"] ?? '';

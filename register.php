@@ -1,6 +1,5 @@
-<!-- register.php -->
-
 <?php
+// <!-- register.php -->
 include "config.php";
 
 $username = $_POST["username"] ?? '';

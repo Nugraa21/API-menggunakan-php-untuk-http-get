@@ -1,6 +1,5 @@
-<!-- absen_history.php -->
-
 <?php
+// <!-- absen_history.php -->
 include "config.php";
 
 $user_id = $_GET['user_id'];

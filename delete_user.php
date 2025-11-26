@@ -1,6 +1,5 @@
-<!-- delete_user.php -->
-
 <?php
+// <!-- delete_user.php -->
 include "config.php";
 
 header('Content-Type: application/json');

@@ -1,6 +1,5 @@
-<!-- absen.php -->
-
 <?php
+// <!-- absen.php -->
 include "config.php";
 
 // ================================

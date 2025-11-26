@@ -1,6 +1,5 @@
-<!-- presensi_rekap.php -->
-
 <?php
+// <!-- presensi_rekap.php -->
 include 'config.php';
 
 // Header JSON

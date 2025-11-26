@@ -1,6 +1,6 @@
-<!-- presensi_approve.php -->
 
 <?php
+// <!-- presensi_approve.php -->
 include 'config.php';
 
 header('Content-Type: application/json');

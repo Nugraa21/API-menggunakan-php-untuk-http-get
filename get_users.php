@@ -1,6 +1,5 @@
-<!-- get_users.php -->
-
 <?php
+// <!-- get_users.php -->
 include "config.php";
 
 header('Content-Type: application/json');

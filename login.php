@@ -1,6 +1,5 @@
-<!-- login.php -->
-
 <?php
+// <!-- login.php -->
 include "config.php";
 
 $input = $_POST["input"] ?? '';
