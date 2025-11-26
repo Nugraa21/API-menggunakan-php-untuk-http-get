@@ -1,3 +1,5 @@
+<!-- register.php -->
+
 <?php
 include "config.php";
 

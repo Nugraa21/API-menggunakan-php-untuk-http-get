@@ -1,3 +1,5 @@
+<!-- update_user.php -->
+
 <?php
 include "config.php";
 

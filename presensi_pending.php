@@ -1,3 +1,5 @@
+<!-- presensi_pending.php -->
+
 <?php
 include 'config.php';
 
