@@ -4,22 +4,25 @@ include "config.php";
 $id = $_POST["id"] ?? '';
 $nama = $_POST["nama_lengkap"] ?? '';
 $username = $_POST["username"] ?? '';
+$password = $_POST["password"] ?? ''; // Optional
 
-if ($id == "" || $nama == "" || $username == "") {
-    echo json_encode(["status" => "error"]);
+if (empty($id) || empty($nama) || empty($username)) {
+    echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
     exit;
 }
 
-$update = mysqli_query($conn, "
-    UPDATE users SET 
-    username='$username',
-    nama_lengkap='$nama'
-    WHERE id='$id'
-");
+$sql = "UPDATE users SET username='$username', nama_lengkap='$nama'";
+if (!empty($password)) {
+    $hashed = password_hash($password, PASSWORD_DEFAULT);
+    $sql .= ", password='$hashed'";
+}
+$sql .= " WHERE id='$id'";
+
+$update = mysqli_query($conn, $sql);
 
 if ($update) {
-    echo json_encode(["status" => "success"]);
+    echo json_encode(["status" => "success", "message" => "User diperbarui"]);
 } else {
-    echo json_encode(["status" => "error"]);
+    echo json_encode(["status" => "error", "message" => mysqli_error($conn)]);
 }
 ?>
