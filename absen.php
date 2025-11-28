@@ -100,7 +100,7 @@ if (!empty($base64Image)) {
     file_put_contents($image_path, ""); // File kosong
     error_log("DEBUG: No image, dummy created");
 }
-
+  
 // INSERT DATA (escape basic, ganti prepared kalau bisa)
 $q = $conn->query("INSERT INTO absensi 
 (user_id, jenis, keterangan, selfie, latitude, longitude, created_at) 
