@@ -10,3 +10,4 @@ $data = [];
 while ($r = $q->fetch_assoc()) $data[] = $r;
 
 echo json_encode(["status" => true, "data" => $data]);
+  
