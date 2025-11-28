@@ -77,7 +77,7 @@ if ($jenis == 'Masuk' || $jenis == 'Pulang') {
         exit;
     }
 }
-    
+     
 // UPLOAD FOTO (skip kalau kosong buat test, pake dummy)
 $target_dir = "selfie/";
 if (!file_exists($target_dir)) {
