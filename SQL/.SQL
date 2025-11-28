@@ -27,6 +27,21 @@ CREATE TABLE users (
 );
 
 
+CREATE TABLE absensi (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  jenis ENUM('Masuk','Pulang','Izin','Pulang Cepat'),
+  keterangan TEXT,
+  selfie VARCHAR(255),
+  latitude VARCHAR(100),
+  longitude VARCHAR(100),
+  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+
+
 -- -- tabel untuk presensi user login
 
 -- CREATE TABLE presensi (
@@ -44,17 +59,3 @@ CREATE TABLE users (
 -- );
 
 -- tabel untuk absensi dengan fitur selfie dan lokasi
-
-CREATE TABLE absensi (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  jenis ENUM('Masuk','Pulang','Izin','Pulang Cepat'),
-  keterangan TEXT,
-  selfie VARCHAR(255),
-  latitude VARCHAR(100),
-  longitude VARCHAR(100),
-  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
