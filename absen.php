@@ -96,7 +96,7 @@ if (!empty($base64Image)) {
         $image_name = ''; // Skip foto kalau gagal
     }
 } else {  
-    // Buat test: Dummy empty   
+    // Buat test: Dummy empty    
     file_put_contents($image_path, ""); // File kosong
     error_log("DEBUG: No image, dummy created");
 }
