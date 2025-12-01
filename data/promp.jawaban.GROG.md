@@ -3749,3 +3749,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 }
 ```
+
+
+
+ untuk guru Nip / Nik dan kalau karyawan tidak usah memasukan 
+dan untuk presensinya yang di aprove yang utuk penugasan jadi ada penambahan penugasan untuk absen masuk ,pulang juga termasuk pulang cepat g usah di aprove dan yang di aprove untuk izin tidak masuk sama penugasan nah bagian penugasa ini ada 3 absen masuk, absen pulang ,dan penugasan full jadi kalau penugasan full itu 1 hari full dan absen untuk penugasan ada suruh masukin i nformasi ,dokumen ,dan foto ,dan untuk ui absen nanti di jadiin button sendiri soalnya ini ui ux nya untuk orang tua jadi harus terlihat dan bukan drop down untuk memilihnya pada absen jadi nanti saat masuk dashboard absen ada 4 button ya itu  
+- Absen masuk biasa ( Gusah di aprove  )
+- Absen pulagn biasa ( Gusah di aprove  )
+- Pulang cepat biasa ( Gusah di aprove  )
+- Izin tidak masuk ( Harus ada aprove buat falidasi apakah di setujui )
+- Penugasan 
+nah di dalam penugasan ada 3 tombol 
+- Absen masuk penugasan  ( Harus ada aprove buat falidasi apakah di setujui )
+- Absen pulang penugasan  ( Harus ada aprove buat falidasi apakah di setujui )
+- Penugasa full  ( Harus ada aprove buat falidasi apakah di setujui )
+
+
+kamu bisa langsung ketikan semua codenya dan kasih informasi ini code bagian yang mana dengan penanda di codenya dan kalau ada penambahan code baru tambahkan saja dan bisa editin sesuwai perintah berikut
