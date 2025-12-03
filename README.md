@@ -20,7 +20,7 @@ if ($conn === false) {
         "message" => "Gagal koneksi SQL Server",
         "detail" => sqlsrv_errors()
     ]);
-    exit;
+    exit;  
 }
 ?>
     
