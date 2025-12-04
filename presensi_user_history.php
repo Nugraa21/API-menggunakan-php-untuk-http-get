@@ -1,5 +1,5 @@
-<!-- <?php
-// presensi_user_history.php (deprecated, gunakan absen_history.php, tapi fix jika diperlukan)
+<?php
+// presensi_user_history.php (DEPRECATED - use absen_history.php, NO CHANGES if kept)
 include 'config.php';
 $user_id = $_GET['user_id'];
 $sql = "SELECT * FROM absensi WHERE user_id='$user_id' ORDER BY id DESC";

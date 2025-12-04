@@ -1,5 +1,5 @@
 <?php
-// presensi_pending.php (standarisasi ke status, return konsisten)
+// presensi_pending.php (UPDATED: Include new fields, filter only Pending)
 include 'config.php';
 header('Content-Type: application/json');
 ini_set('display_errors', 0);

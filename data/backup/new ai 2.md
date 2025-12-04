@@ -22,7 +22,7 @@ if (!$conn) {
 
 ```php
 <?php
-// absen.php (UPDATED: Expanded jenis ENUM support, added 'informasi' and 'dokumen' fields, auto-set status based on jenis (biasa: Disetujui, others: Pending), skip distance check for Penugasan types, added dokumen upload similar to selfie)
+// absen.php (FIXED: Corrected distance calculation typo - $dLon = deg2rad($lon2 - $lon1); Expanded jenis ENUM support, added 'informasi' and 'dokumen' fields, auto-set status based on jenis (biasa: Disetujui, others: Pending), skip distance check for Penugasan types, added dokumen upload similar to selfie)
 include "config.php";
 // ================================
 // KOORDINAT SEKOLAH (SINKRON SAMA FLUTTER)
@@ -32,7 +32,7 @@ $max_distance = 100; // Meter, sinkron sama Flutter
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     $earth_radius = 6371000;
     $dLat = deg2rad($lat2 - $lat1);
-    $dLon = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1); // FIXED: $lon2 - $lon1, not $lat2 - $lat1
     $a = sin($dLat/2) * sin($dLat/2) +
          cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
          sin($dLon/2) * sin($dLon/2);
@@ -403,15 +403,18 @@ if ($conn->query($sql)) {
 
 ```php
 <?php
-// presensi_rekap.php (UPDATED: Include new fields informasi and dokumen)
+// presensi_rekap.php (UPDATED: Include new fields informasi and dokumen; support optional month/year filter for rekap)
 include 'config.php';
 // Header JSON
 header('Content-Type: application/json');
 // Suppress HTML errors
 ini_set('display_errors', 0);
+$month = $_GET['month'] ?? date('m');
+$year = $_GET['year'] ?? date('Y');
 $sql = "SELECT p.*, u.nama_lengkap, u.username
         FROM absensi p
         JOIN users u ON p.user_id = u.id
+        WHERE MONTH(p.created_at) = '$month' AND YEAR(p.created_at) = '$year'
         ORDER BY p.created_at DESC";
 $result = $conn->query($sql);
 if (!$result) {
@@ -472,24 +475,22 @@ echo json_encode(["status" => true, "data" => $data]);
 -- Schema (UPDATED: Expanded ENUM for jenis to include Penugasan types; added 'informasi' TEXT and 'dokumen' VARCHAR(255) to absensi; no new tables needed)
 DROP TABLE IF EXISTS absensi;
 DROP TABLE IF EXISTS users;
-
 CREATE TABLE users (
   id INT(11) NOT NULL AUTO_INCREMENT,
   username VARCHAR(255) NOT NULL,
   nama_lengkap VARCHAR(255) NOT NULL,
-  nip_nisn VARCHAR(255) DEFAULT NULL,  -- Optional for karyawan, required for guru (validated in PHP/Flutter)
+  nip_nisn VARCHAR(255) DEFAULT NULL, -- Optional for karyawan, required for guru (validated in PHP/Flutter)
   password VARCHAR(255) NOT NULL,
   role ENUM('user','admin','superadmin') DEFAULT 'user',
   PRIMARY KEY (id)
 );
-
 CREATE TABLE absensi (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   jenis ENUM('Masuk','Pulang','Izin','Pulang Cepat','Penugasan_Masuk','Penugasan_Pulang','Penugasan_Full'),
   keterangan TEXT,
-  informasi TEXT,  -- NEW: For Penugasan details
-  dokumen VARCHAR(255),  -- NEW: Path to uploaded dokumen
+  informasi TEXT, -- NEW: For Penugasan details
+  dokumen VARCHAR(255), -- NEW: Path to uploaded dokumen
   selfie VARCHAR(255),
   latitude VARCHAR(100),
   longitude VARCHAR(100),
@@ -500,7 +501,7 @@ CREATE TABLE absensi (
 ```
 
 ```dart
-// main.dart (UPDATED: Added routes for specific presensi types if needed, but using arguments)
+// main.dart (UPDATED: Added routes for specific presensi types if needed, but using arguments; added RekapPage route; updated theme for older users - larger fonts, high contrast)
 import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
 import 'pages/register_page.dart';
@@ -513,6 +514,8 @@ import 'pages/admin_presensi_page.dart';
 // PAGE BARU ADMIN USER
 import 'pages/admin_user_list_page.dart';
 import 'pages/admin_user_detail_page.dart';
+// NEW: Rekap page
+import 'pages/rekap_page.dart';
 import 'models/user_model.dart';
 void main() {
   runApp(const SkadutaApp());
@@ -522,10 +525,26 @@ class SkadutaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeData(
-      colorSchemeSeed: Colors.orange,
+      colorSchemeSeed: Colors.blueGrey, // Softer colors for older users
       useMaterial3: true,
-      scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-      appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+      scaffoldBackgroundColor: Colors.white, // High contrast
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(fontSize: 18), // Larger fonts
+        bodyMedium: TextStyle(fontSize: 16),
+      ),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.blueGrey,
+        foregroundColor: Colors.white,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          textStyle: const TextStyle(fontSize: 18),
+        ),
+      ),
+      cardTheme: const CardTheme(elevation: 4),
     );
     return MaterialApp(
       title: 'Skaduta Presensi',
@@ -537,6 +556,7 @@ class SkadutaApp extends StatelessWidget {
         '/register': (context) => const RegisterPage(),
         // admin presensi tidak butuh argumen
         '/admin-presensi': (context) => const AdminPresensiPage(),
+        '/rekap': (context) => const RekapPage(), // NEW: Rekap route
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/dashboard') {
@@ -569,7 +589,7 @@ class SkadutaApp extends StatelessWidget {
 ```
 
 ```dart
-// api/api_service.dart (UPDATED: Added 'informasi' and 'dokumenBase64' to submitPresensi; register now sends 'is_karyawan')
+// api/api_service.dart (UPDATED: Added 'informasi' and 'dokumenBase64' to submitPresensi; register now sends 'is_karyawan'; added getRekap with month/year)
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 class ApiService {
@@ -703,6 +723,19 @@ class ApiService {
       throw Exception('Response bukan JSON valid: $e. Cek server log.');
     }
   }
+  // NEW: Get Rekap (with optional month/year)
+  static Future<List<dynamic>> getRekap({String? month, String? year}) async {
+    var url = "$baseUrl/presensi_rekap.php";
+    if (month != null && year != null) {
+      url += "?month=$month&year=$year";
+    }
+    final res = await http.get(Uri.parse(url));
+    final data = jsonDecode(res.body);
+    if (data["status"] == true) {
+      return data["data"] as List<dynamic>;
+    }
+    return [];
+  }
   // UPDATE PRESENSI STATUS (FIX: Debug detail untuk approve, handle 500)
   static Future<Map<String, dynamic>> updatePresensiStatus({
     required String id,
@@ -766,7 +799,7 @@ class UserModel {
 ```
 
 ```dart
-// pages/admin_presensi_page.dart (UPDATED: Handle new fields informasi and dokumen in dialog/list)
+// pages/admin_presensi_page.dart (UPDATED: Handle new fields informasi and dokumen in dialog/list; simplified UI for older users - larger text, high contrast)
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 class AdminPresensiPage extends StatefulWidget {
@@ -835,10 +868,14 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                     : status == 'Ditolak'
                     ? Colors.red
                     : Colors.orange,
+                size: 32, // Larger icon
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('${item['nama_lengkap']} - ${item['jenis']}'),
+                child: Text(
+                  '${item['nama_lengkap']} - ${item['jenis']}',
+                  style: const TextStyle(fontSize: 20), // Larger text
+                ),
               ),
             ],
           ),
@@ -847,21 +884,21 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tanggal: ${item['created_at'] ?? ''}'),
+                Text('Tanggal: ${item['created_at'] ?? ''}', style: const TextStyle(fontSize: 18)),
                 const SizedBox(height: 8),
-                Text('Keterangan: ${item['keterangan'] ?? '-'}'),
+                Text('Keterangan: ${item['keterangan'] ?? '-'}', style: const TextStyle(fontSize: 18)),
                 if (item['informasi'] != null && item['informasi'].isNotEmpty) ...[ // NEW
                   const SizedBox(height: 8),
                   Text(
                     'Informasi Penugasan: ${item['informasi']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
                 const SizedBox(height: 8),
                 if (fotoUrl != null) ...[
                   const Text(
                     'Foto Presensi:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
@@ -904,11 +941,11 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.image_not_supported, color: Colors.grey),
+                        Icon(Icons.image_not_supported, color: Colors.grey, size: 32),
                         SizedBox(width: 8),
                         Text(
                           'Tidak ada foto',
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: Colors.grey, fontSize: 18),
                         ),
                       ],
                     ),
@@ -917,7 +954,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Dokumen Penugasan:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
@@ -931,9 +968,9 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.attachment, color: Colors.blue),
+                          Icon(Icons.attachment, color: Colors.blue, size: 32),
                           const SizedBox(width: 8),
-                          Text('Lihat Dokumen (${item['dokumen']})'),
+                          Text('Lihat Dokumen (${item['dokumen']})', style: const TextStyle(fontSize: 18)),
                         ],
                       ),
                     ),
@@ -949,6 +986,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                         : status == 'Ditolak'
                         ? Colors.red
                         : Colors.orange,
+                    fontSize: 18,
                   ),
                 ),
               ],
@@ -963,7 +1001,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                 },
                 child: const Text(
                   'Setujui',
-                  style: TextStyle(color: Colors.green),
+                  style: TextStyle(color: Colors.green, fontSize: 18),
                 ),
               ),
               TextButton(
@@ -971,12 +1009,12 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                   Navigator.pop(context);
                   _updateStatus(item['id'].toString(), 'Ditolak');
                 },
-                child: const Text('Tolak', style: TextStyle(color: Colors.red)),
+                child: const Text('Tolak', style: TextStyle(color: Colors.red, fontSize: 18)),
               ),
             ] else
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Tutup'),
+                child: const Text('Tutup', style: TextStyle(fontSize: 18)),
               ),
           ],
         ),
@@ -1028,7 +1066,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
   Future<void> _updateStatus(String id, String status) async {
     try {
       final res = await ApiService.updatePresensiStatus(id: id, status: status);
-      if (res['status'] == true) { // Konsisten dengan PHP response
+      if (res['status'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(res['message'] ?? 'Status diperbarui'),
@@ -1064,7 +1102,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
               'Pending',
               'Disetujui',
               'Ditolak',
-            ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            ].map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 18)))).toList(),
             onChanged: (v) => setState(() => _filterStatus = v ?? 'All'),
           ),
         ],
@@ -1075,7 +1113,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Total: ${_filteredItems.length}',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ),
           Expanded(
@@ -1114,19 +1152,20 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                               '${item['nama_lengkap'] ?? ''} - ${item['jenis'] ?? ''}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Tgl: ${item['created_at'] ?? ''}'),
-                                Text('Ket: ${item['keterangan'] ?? '-'}'),
+                                Text('Tgl: ${item['created_at'] ?? ''}', style: const TextStyle(fontSize: 16)),
+                                Text('Ket: ${item['keterangan'] ?? '-'}', style: const TextStyle(fontSize: 16)),
                                 if (item['informasi'] != null && item['informasi'].isNotEmpty) // NEW
-                                  Text('Info: ${item['informasi'].substring(0, 50)}...'),
+                                  Text('Info: ${item['informasi'].substring(0, 50)}...', style: const TextStyle(fontSize: 16)),
                                 Text(
                                   'Status: $status',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     color: statusColor,
                                   ),
@@ -1185,7 +1224,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                             trailing: status == 'Pending'
                                 ? const Icon(
                                     Icons.arrow_forward_ios,
-                                    size: 16,
+                                    size: 20,
                                     color: Colors.orange,
                                   )
                                 : Icon(
@@ -1193,6 +1232,7 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
                                         ? Icons.check_circle
                                         : Icons.cancel,
                                     color: statusColor,
+                                    size: 32, // Larger
                                   ),
                           ),
                         );
@@ -1208,11 +1248,11 @@ class _AdminPresensiPageState extends State<AdminPresensiPage> {
 ```
 
 ```dart
-// pages/admin_user_detail_page.dart (UPDATED: Handle new fields in tabs)
+// pages/admin_user_detail_page.dart (UPDATED: Handle new fields in tabs; simplified UI)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
-class AdminUserDetailPage extends StatefulWidget {  // FIXED: Removed circular import
+class AdminUserDetailPage extends StatefullWidget {
   final String userId;
   final String userName;
   const AdminUserDetailPage({
@@ -1272,21 +1312,21 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
       if (res['status'] == true) { // Konsisten
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(res['message'] ?? 'Status diperbarui'),
+            content: Text(res['message'] ?? 'Status diperbarui', style: const TextStyle(fontSize: 18)),
             backgroundColor: Colors.green,
           ),
         );
         _loadData(); // Reload tab
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['message'] ?? 'Gagal update status')),
+          SnackBar(content: Text(res['message'] ?? 'Gagal update status', style: const TextStyle(fontSize: 18))),
         );
       }
     } catch (e) {
       print('DEBUG UPDATE: Exception caught: $e');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error approve: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error approve: $e', style: const TextStyle(fontSize: 18))));
     }
   }
   void _showFullPhoto(String? url) {
@@ -1299,19 +1339,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  url,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) => const Center(
-                    child: Icon(Icons.error, color: Colors.white, size: 50),
-                  ),
-                ),
+                child: Image.network(url, fit: BoxFit.contain),
               ),
             ),
             Positioned(
@@ -1355,11 +1383,11 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey),
+            Icon(Icons.history, size: 80, color: Colors.grey), // Larger
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Belum ada riwayat presensi',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(fontSize: 20, color: Colors.grey),
             ),
           ],
         ),
@@ -1392,16 +1420,16 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
             child: ListTile(
               title: Text(
                 item['jenis'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tgl: ${item['created_at'] ?? ''}'),
-                  Text('Ket: ${item['keterangan'] ?? '-'}'),
+                  Text('Tgl: ${item['created_at'] ?? ''}', style: const TextStyle(fontSize: 16)),
+                  Text('Ket: ${item['keterangan'] ?? '-'}', style: const TextStyle(fontSize: 16)),
                   if (item['informasi'] != null && item['informasi'].isNotEmpty) // NEW
-                    Text('Info: ${item['informasi']}'),
-                  Text('Status: $status', style: TextStyle(color: statusColor)),
+                    Text('Info: ${item['informasi']}', style: const TextStyle(fontSize: 16)),
+                  Text('Status: $status', style: TextStyle(color: statusColor, fontSize: 16)),
                   if (fotoUrl != null) ...[
                     const SizedBox(height: 4),
                     GestureDetector(
@@ -1459,7 +1487,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
                           children: [
                             Icon(Icons.attachment, color: Colors.blue, size: 20),
                             SizedBox(width: 4),
-                            Text('Dokumen', style: TextStyle(color: Colors.blue)),
+                            Text('Dokumen', style: TextStyle(color: Colors.blue, fontSize: 16)),
                           ],
                         ),
                       ),
@@ -1474,6 +1502,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
                     ? Icons.cancel
                     : Icons.pending,
                 color: statusColor,
+                size: 32,
               ),
             ),
           );
@@ -1503,11 +1532,11 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.pending_actions, size: 64, color: Colors.grey),
+            Icon(Icons.pending_actions, size: 80, color: Colors.grey),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Tidak ada presensi pending',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(fontSize: 20, color: Colors.grey),
             ),
           ],
         ),
@@ -1536,16 +1565,16 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
             child: ListTile(
               title: Text(
                 item['jenis'] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tgl: ${item['created_at'] ?? ''}'),
-                  Text('Ket: ${item['keterangan'] ?? '-'}'),
+                  Text('Tgl: ${item['created_at'] ?? ''}', style: const TextStyle(fontSize: 16)),
+                  Text('Ket: ${item['keterangan'] ?? '-'}', style: const TextStyle(fontSize: 16)),
                   if (item['informasi'] != null && item['informasi'].isNotEmpty) // NEW
-                    Text('Info: ${item['informasi']}'),
-                  const Text('Status: Pending'),
+                    Text('Info: ${item['informasi']}', style: const TextStyle(fontSize: 16)),
+                  const Text('Status: Pending', style: TextStyle(fontSize: 16)),
                   if (fotoUrl != null) ...[
                     const SizedBox(height: 4),
                     GestureDetector(
@@ -1603,7 +1632,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
                           children: [
                             Icon(Icons.attachment, color: Colors.blue, size: 20),
                             SizedBox(width: 4),
-                            Text('Dokumen', style: TextStyle(color: Colors.blue)),
+                            Text('Dokumen', style: TextStyle(color: Colors.blue, fontSize: 16)),
                           ],
                         ),
                       ),
@@ -1615,12 +1644,12 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.check, color: Colors.green),
+                    icon: const Icon(Icons.check, color: Colors.green, size: 32),
                     onPressed: () =>
                         _updateStatus(item['id'].toString(), 'Disetujui'),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.red),
+                    icon: const Icon(Icons.close, color: Colors.red, size: 32),
                     onPressed: () =>
                         _updateStatus(item['id'].toString(), 'Ditolak'),
                   ),
@@ -1637,7 +1666,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.userName),
+        title: Text(widget.userName, style: const TextStyle(fontSize: 20)),
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -1666,7 +1695,7 @@ class _AdminUserDetailPageState extends State<AdminUserDetailPage>
 ```
 
 ```dart
-// pages/admin_user_list_page.dart (NO CHANGES - already handles nip_nisn display)
+// pages/admin_user_list_page.dart (UPDATED: Simplified UI for older users)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
@@ -1718,7 +1747,7 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memuat list user: $e')));
+        ).showSnackBar(SnackBar(content: Text('Gagal memuat list user: $e', style: const TextStyle(fontSize: 18))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1789,7 +1818,7 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                       children: [
                         CircularProgressIndicator(),
                         SizedBox(height: 16),
-                        Text('Memuat users...'),
+                        Text('Memuat users...', style: TextStyle(fontSize: 20)),
                       ],
                     ),
                   )
@@ -1802,7 +1831,7 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                               children: [
                                 Icon(
                                   Icons.people_outline,
-                                  size: 80,
+                                  size: 100,
                                   color: Colors.grey[400],
                                 ),
                                 const SizedBox(height: 16),
@@ -1810,8 +1839,8 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                                   _searchC.text.isNotEmpty
                                       ? 'Tidak ditemukan user'
                                       : 'Belum ada user terdaftar',
-                                  style: TextStyle(
-                                    fontSize: 18,
+                                  style: const TextStyle(
+                                    fontSize: 20,
                                     color: Colors.grey[600],
                                   ),
                                 ),
@@ -1819,7 +1848,7 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                                   const SizedBox(height: 8),
                                   ElevatedButton(
                                     onPressed: _loadUsers,
-                                    child: const Text('Refresh'),
+                                    child: const Text('Refresh', style: TextStyle(fontSize: 18)),
                                   ),
                                 ],
                               ],
@@ -1863,17 +1892,17 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                                     child: Row(
                                       children: [
                                         CircleAvatar(
-                                          radius: 30,
+                                          radius: 40, // Larger avatar
                                           backgroundColor: cs.primary
                                               .withOpacity(0.1),
                                           child: Text(
                                             username.isNotEmpty
                                                 ? username[0].toUpperCase()
                                                 : 'U',
-                                            style: TextStyle(
-                                              fontSize: 20,
+                                            style: const TextStyle(
+                                              fontSize: 24,
                                               fontWeight: FontWeight.bold,
-                                              color: cs.primary,
+                                              color: Colors.blueGrey,
                                             ),
                                           ),
                                         ),
@@ -1886,31 +1915,33 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
                                               Text(
                                                 nama,
                                                 style: const TextStyle(
-                                                  fontSize: 18,
+                                                  fontSize: 20,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
                                                 'Username: $username',
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   color: Colors.grey[600],
+                                                  fontSize: 16,
                                                 ),
                                               ),
                                               if (nip.isNotEmpty)
                                                 Text(
                                                   'NIP/NISN: $nip',
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     color: Colors.grey[600],
+                                                    fontSize: 16,
                                                   ),
                                                 ),
                                             ],
                                           ),
                                         ),
-                                        Icon(
+                                        const Icon(
                                           Icons.arrow_forward_ios,
-                                          color: cs.primary,
-                                          size: 20,
+                                          color: Colors.blueGrey,
+                                          size: 24,
                                         ),
                                       ],
                                     ),
@@ -1929,7 +1960,7 @@ class _AdminUserListPageState extends State<AdminUserListPage> {
 ```
 
 ```dart
-// pages/dashboard_page.dart (UPDATED: For user role, replaced dropdown with 5 buttons: 4 biasa + 1 Penugasan; Penugasan shows bottom sheet with 3 sub-buttons)
+// pages/dashboard_page.dart (UPDATED: Added Rekap menu for admin/superadmin; simplified UI, larger buttons/text for older users)
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 class DashboardPage extends StatelessWidget {
@@ -1940,7 +1971,7 @@ class DashboardPage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: const Text('Dashboard', style: TextStyle(fontSize: 22)),
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -1961,18 +1992,18 @@ class DashboardPage extends StatelessWidget {
                 label: Text(
                   user.role.toUpperCase(),
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 backgroundColor: cs.primary.withOpacity(0.15),
                 side: BorderSide(color: cs.primary, width: 1.5),
-                avatar: Icon(Icons.shield, size: 16, color: cs.primary),
+                avatar: Icon(Icons.shield, size: 20, color: cs.primary),
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, size: 28),
             onPressed: () {
               Navigator.pushNamedAndRemoveUntil(
                 context,
@@ -2007,9 +2038,9 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  const Text(
                     'Selamat datang di sistem presensi Skaduta',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                    style: TextStyle(color: Colors.grey, fontSize: 18),
                   ),
                   const SizedBox(height: 30),
                 ],
@@ -2061,7 +2092,7 @@ class DashboardPage extends StatelessWidget {
                     color: (color ?? Colors.blue).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, size: 32, color: color ?? Colors.blue),
+                  child: Icon(icon, size: 40, color: color ?? Colors.blue), // Larger icon
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -2071,21 +2102,21 @@ class DashboardPage extends StatelessWidget {
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
                 const Icon(
                   Icons.arrow_forward_ios,
-                  size: 16,
+                  size: 24,
                   color: Colors.grey,
                 ),
               ],
@@ -2169,7 +2200,7 @@ class DashboardPage extends StatelessWidget {
           children: [
             const Text(
               'Pilih Jenis Penugasan',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             _subCard(
@@ -2227,11 +2258,11 @@ class DashboardPage extends StatelessWidget {
                     color: color.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color),
+                  child: Icon(icon, color: color, size: 32),
                 ),
                 const SizedBox(width: 16),
-                Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
-                const Icon(Icons.arrow_forward_ios, size: 16),
+                Expanded(child: Text(title, style: const TextStyle(fontSize: 18))),
+                const Icon(Icons.arrow_forward_ios, size: 24),
               ],
             ),
           ),
@@ -2257,6 +2288,14 @@ class DashboardPage extends StatelessWidget {
           subtitle: 'Setujui / tolak presensi user secara global',
           onTap: () {
             Navigator.pushNamed(context, '/admin-presensi');
+          },
+        ),
+        _card(
+          icon: Icons.table_chart,
+          title: 'Rekap Absensi',
+          subtitle: 'Lihat rekap presensi semua user',
+          onTap: () {
+            Navigator.pushNamed(context, '/rekap');
           },
         ),
       ],
@@ -2290,6 +2329,14 @@ class DashboardPage extends StatelessWidget {
             Navigator.pushNamed(context, '/admin-presensi');
           },
         ),
+        _card(
+          icon: Icons.table_chart,
+          title: 'Rekap Absensi',
+          subtitle: 'Lihat rekap presensi semua user',
+          onTap: () {
+            Navigator.pushNamed(context, '/rekap');
+          },
+        ),
       ],
     );
   }
@@ -2297,7 +2344,7 @@ class DashboardPage extends StatelessWidget {
 ```
 
 ```dart
-// pages/history_page.dart (UPDATED: Handle new fields informasi and dokumen)
+// pages/history_page.dart (UPDATED: Handle new fields informasi and dokumen; simplified UI)
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 import '../models/user_model.dart';
@@ -2325,7 +2372,7 @@ class _HistoryPageState extends State<HistoryPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Gagal ambil histori: $e')));
+        ).showSnackBar(SnackBar(content: Text('Gagal ambil histori: $e', style: const TextStyle(fontSize: 18))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -2342,7 +2389,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Riwayat Presensi'),
+        title: const Text('Riwayat Presensi', style: TextStyle(fontSize: 22)),
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -2358,7 +2405,7 @@ class _HistoryPageState extends State<HistoryPage> {
               'Penugasan_Masuk',
               'Penugasan_Pulang',
               'Penugasan_Full',
-            ].map((j) => DropdownMenuItem(value: j, child: Text(j))).toList(),
+            ].map((j) => DropdownMenuItem(value: j, child: Text(j, style: const TextStyle(fontSize: 18)))).toList(),
             onChanged: (v) => setState(() => _filterJenis = v ?? 'All'),
           ),
         ],
@@ -2373,7 +2420,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'Total: ${_filteredItems.length}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                     ),
                   ),
                   Expanded(
@@ -2384,14 +2431,14 @@ class _HistoryPageState extends State<HistoryPage> {
                               children: [
                                 Icon(
                                   Icons.history,
-                                  size: 64,
+                                  size: 80,
                                   color: Colors.grey,
                                 ),
                                 const SizedBox(height: 16),
-                                Text(
+                                const Text(
                                   'Belum ada riwayat presensi',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 20,
                                     color: Colors.grey,
                                   ),
                                 ),
@@ -2427,24 +2474,26 @@ class _HistoryPageState extends State<HistoryPage> {
                                     color: _getColorForJenis(
                                       item['jenis'] ?? '',
                                     ),
+                                    size: 32,
                                   ),
                                   title: Text(
                                     item['jenis'] ?? '',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 18,
                                     ),
                                   ),
                                   subtitle: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text('Tgl: ${item['created_at'] ?? ''}'),
-                                      Text('Ket: ${item['keterangan'] ?? '-'}'),
+                                      Text('Tgl: ${item['created_at'] ?? ''}', style: const TextStyle(fontSize: 16)),
+                                      Text('Ket: ${item['keterangan'] ?? '-'}', style: const TextStyle(fontSize: 16)),
                                       if (item['informasi'] != null && item['informasi'].isNotEmpty) // NEW
-                                        Text('Info: ${item['informasi']}'),
+                                        Text('Info: ${item['informasi']}', style: const TextStyle(fontSize: 16)),
                                       Text(
                                         'Status: $status',
-                                        style: TextStyle(color: statusColor),
+                                        style: TextStyle(color: statusColor, fontSize: 16),
                                       ),
                                       if (dokumenUrl != null) ...[ // NEW
                                         const SizedBox(height: 4),
@@ -2459,9 +2508,9 @@ class _HistoryPageState extends State<HistoryPage> {
                                             child: const Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Icon(Icons.attachment, size: 16, color: Colors.blue),
+                                                Icon(Icons.attachment, size: 20, color: Colors.blue),
                                                 SizedBox(width: 4),
-                                                Text('Dokumen', style: TextStyle(fontSize: 12, color: Colors.blue)),
+                                                Text('Dokumen', style: TextStyle(fontSize: 16, color: Colors.blue)),
                                               ],
                                             ),
                                           ),
@@ -2476,6 +2525,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                         ? Icons.cancel
                                         : Icons.pending,
                                     color: statusColor,
+                                    size: 32,
                                   ),
                                 ),
                               );
@@ -2534,7 +2584,7 @@ class _HistoryPageState extends State<HistoryPage> {
 ```
 
 ```dart
-// pages/login_page.dart (NO CHANGES)
+// pages/login_page.dart (UPDATED: Larger fonts, high contrast)
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 import '../models/user_model.dart';
@@ -2571,7 +2621,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: const TextStyle(fontSize: 18))));
   }
   @override
   void dispose() {
@@ -2606,27 +2656,27 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     // Header with logo/icon
                     const SizedBox(height: 24),
-                    Text(
+                    const Text(
                       'Skaduta Presensi',
                       style: TextStyle(
-                        fontSize: 32,
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         shadows: [
                           Shadow(
-                            offset: const Offset(1, 1),
+                            offset: Offset(1, 1),
                             blurRadius: 4,
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black26,
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'Silakan login untuk melanjutkan',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 20,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -2657,13 +2707,16 @@ class _LoginPageState extends State<LoginPage> {
                                   prefixIcon: Icon(
                                     Icons.person_outline,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.6),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Tidak boleh kosong';
@@ -2680,6 +2733,7 @@ class _LoginPageState extends State<LoginPage> {
                                   prefixIcon: Icon(
                                     Icons.lock_outline,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
@@ -2697,7 +2751,9 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.6),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) {
                                     return 'Password wajib diisi';
@@ -2738,7 +2794,7 @@ class _LoginPageState extends State<LoginPage> {
                                           'Masuk Sekarang',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontSize: 20,
                                           ),
                                         ),
                                 ),
@@ -2752,7 +2808,7 @@ class _LoginPageState extends State<LoginPage> {
                                   },
                                   child: Text(
                                     'Belum punya akun? Daftar di sini',
-                                    style: TextStyle(color: cs.primary),
+                                    style: TextStyle(color: cs.primary, fontSize: 18),
                                   ),
                                 ),
                               ),
@@ -2770,22 +2826,22 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       child: Column(
                         children: [
-                          Text(
+                          const Text(
                             'Catatan:',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          RichText(
+                          const RichText(
                             text: TextSpan(
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                                color: Colors.white,
                               ),
-                              children: const [
+                              children: [
                                 TextSpan(
                                   text:
                                       '• Login bisa pakai Username / NIP / NISN\n',
@@ -2812,61 +2868,46 @@ class _LoginPageState extends State<LoginPage> {
 ```
 
 ```dart
-// pages/presensi_page.dart (UPDATED: Accept initialJenis from args; conditional fields based on jenis (e.g., informasi/dokumen for Penugasan); skip radius for Penugasan; use updated API call)
+// pages/presensi_page.dart (UPDATED: No map; simplified UI - full screen form, larger text/buttons; conditional fields; skip radius for Izin/Penugasan)
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:latlong2/latlong.dart';
 import '../api/api_service.dart';
 import '../models/user_model.dart';
 class PresensiPage extends StatefulWidget {
   final UserModel user;
-  final String initialJenis; // NEW: From dashboard
+  final String initialJenis; // From dashboard
   const PresensiPage({super.key, required this.user, required this.initialJenis});
   @override
   State<PresensiPage> createState() => _PresensiPageState();
 }
 class _PresensiPageState extends State<PresensiPage> {
   Position? _position;
-  late String _jenis; // NEW: Set from initial
+  late String _jenis; // Set from initial
   final TextEditingController _ketC = TextEditingController();
-  final TextEditingController _infoC = TextEditingController(); // NEW: For informasi
+  final TextEditingController _infoC = TextEditingController(); // For informasi
   File? _selfieFile;
-  File? _dokumenFile; // NEW: For dokumen
+  File? _dokumenFile; // For dokumen
   bool _loading = false;
   final ImagePicker _picker = ImagePicker();
   // Koordinat SMK N 2 YK (sinkron sama PHP)
   final double sekolahLat = -7.777047019078815;
   final double sekolahLng = 110.3671540164373;
   final double maxRadius = 100; // meter
-  // For sheet drag effects
-  final DraggableScrollableController _sheetController =
-      DraggableScrollableController();
-  double _darkenValue = 0.0;
-  static const double _initialSheetSize = 0.45;
-  static const double _maxDarken = 0.15; // Subtle dark overlay
   @override
   void initState() {
     super.initState();
-    _jenis = widget.initialJenis; // NEW
-    _initLocation();
-    _sheetController.addListener(() {
-      final extent = _sheetController.size;
-      final normalized =
-          (extent - _initialSheetSize) / (1.0 - _initialSheetSize);
-      setState(() {
-        _darkenValue = (_maxDarken * normalized).clamp(0.0, _maxDarken);
-      });
-    });
+    _jenis = widget.initialJenis;
+    if (! _isNoLocationNeeded) { // Skip location for Izin/Penugasan
+      _initLocation();
+    }
   }
   @override
   void dispose() {
     _ketC.dispose();
-    _infoC.dispose(); // NEW
-    _sheetController.dispose();
+    _infoC.dispose();
     super.dispose();
   }
   Future<void> _initLocation() async {
@@ -2930,13 +2971,13 @@ class _PresensiPageState extends State<PresensiPage> {
     }
   }
   Future<void> _submitPresensi() async {
-    if (_position == null && !_isPenugasan) { // NEW: Skip location for Penugasan
+    if (!_isNoLocationNeeded && _position == null) { // Skip for Izin/Penugasan
       _showSnack('Lokasi belum terbaca');
       return;
     }
     final jarak = _distanceToSchool();
     final isInRadius = jarak <= maxRadius;
-    if (!isInRadius && !_isPenugasan) { // NEW: Skip check for Penugasan
+    if (!_isNoLocationNeeded && !isInRadius) { // Skip check for Izin/Penugasan
       _showSnack(
         'Kamu di luar jangkauan sekolah (±${jarak.toStringAsFixed(1)}m)',
       );
@@ -3000,6 +3041,7 @@ class _PresensiPageState extends State<PresensiPage> {
     }
   }
   bool get _isPenugasan => _jenis.startsWith('Penugasan'); // NEW: Helper
+  bool get _isNoLocationNeeded => _jenis == 'Izin' || _isPenugasan; // NEW: Skip location/radius for Izin/Penugasan
   void _resetForm() {
     setState(() {
       _ketC.clear();
@@ -3012,7 +3054,7 @@ class _PresensiPageState extends State<PresensiPage> {
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(msg, style: const TextStyle(fontSize: 18)),
         backgroundColor: msg.contains('berhasil') ? Colors.green : Colors.red,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
@@ -3025,237 +3067,62 @@ class _PresensiPageState extends State<PresensiPage> {
     final cs = Theme.of(context).colorScheme;
     final jarak = _distanceToSchool();
     final isInRadius = jarak <= maxRadius;
-    final progress = (maxRadius - jarak.clamp(0, maxRadius)) / maxRadius;
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      appBar: AppBar( // NEW: Show jenis in title
-        title: Text(_jenis.replaceAll('_', ' ')),
+      appBar: AppBar(
+        title: Text(_jenis.replaceAll('_', ' '), style: const TextStyle(fontSize: 22)),
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,
       ),
-      body: _position == null && !_isPenugasan // NEW: Skip map for Penugasan if no location needed
-          ? Container(
-              color: Colors.grey[50],
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: cs.primary),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Mendapatkan lokasi...',
-                      style: TextStyle(color: Colors.black87),
-                    ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  if (!_isNoLocationNeeded) // Show radius only if needed
+                    _buildRadiusCard(jarak, isInRadius, cs),
+                  const SizedBox(height: 20),
+                  if (_jenis == 'Izin' || _jenis == 'Pulang Cepat') ...[
+                    _buildKeterangan(cs),
+                    const SizedBox(height: 20),
                   ],
-                ),
+                  if (_isPenugasan) ...[ // Informasi field
+                    _buildInformasi(cs),
+                    const SizedBox(height: 20),
+                  ],
+                  _buildSelfie(cs),
+                  if (_isPenugasan) ...[ // Dokumen field
+                    const SizedBox(height: 20),
+                    _buildDokumen(cs),
+                  ],
+                  const SizedBox(height: 28),
+                  _buildSubmitButtons(cs),
+                  const SizedBox(height: 30), // Extra space
+                ],
               ),
-            )
-          : Stack(
-              children: [
-                if (!_isPenugasan) // NEW: Show map only if not Penugasan
-                  Positioned.fill(
-                    child: FlutterMap(
-                      options: MapOptions(
-                        initialCenter: LatLng(
-                          -7.777047019078815,
-                          110.3671540164373,
-                        ),
-                        initialZoom: 17.0,
-                        interactionOptions: const InteractionOptions(
-                          flags: InteractiveFlag.all,
-                        ),
-                      ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        ),
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: const LatLng(
-                                -7.777047019078815,
-                                110.3671540164373,
-                              ),
-                              width: 40,
-                              height: 40,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: cs.primary,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: cs.primary.withOpacity(0.3),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.school,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                            Marker(
-                              point: LatLng(
-                                _position!.latitude,
-                                _position!.longitude,
-                              ),
-                              width: 40,
-                              height: 40,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: isInRadius ? Colors.green : Colors.red,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          (isInRadius ? Colors.green : Colors.red)
-                                              .withOpacity(0.3),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.my_location,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        // Polygon for school area
-                        PolygonLayer(
-                          polygons: [
-                            Polygon(
-                              points: [
-                                LatLng(sekolahLat - 0.001, sekolahLng - 0.001),
-                                LatLng(sekolahLat - 0.001, sekolahLng + 0.001),
-                                LatLng(sekolahLat + 0.001, sekolahLng + 0.001),
-                                LatLng(sekolahLat + 0.001, sekolahLng - 0.001),
-                              ],
-                              color: cs.primary.withOpacity(0.2),
-                              borderColor: cs.primary,
-                              borderStrokeWidth: 2,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                // ✨ DARK OVERLAY saat sheet dragged up (Ignore pointers to allow map interaction)
-                IgnorePointer(
-                  ignoring: true,
-                  child: Positioned.fill(
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      opacity: _darkenValue > 0 ? 1.0 : 0.0,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                        color: Colors.black.withOpacity(_darkenValue),
-                      ),
-                    ),
-                  ),
-                ),
-                // 📱 DRAGGABLE SHEET FOR FORM (Bottom popup) - with smoother physics
-                DraggableScrollableSheet(
-                  controller: _sheetController,
-                  initialChildSize: _initialSheetSize,
-                  minChildSize: 0.4,
-                  maxChildSize: 0.95,
-                  snap: true,
-                  snapSizes: const [0.45, 0.95],
-                  builder: (context, scrollController) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(24),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 25,
-                            offset: const Offset(0, -8),
-                          ),
-                        ],
-                      ),
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        physics: const ClampingScrollPhysics(),
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            // Handle bar for drag - cooler design
-                            Container(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              height: 5,
-                              width: 50,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                            if (!_isPenugasan) // NEW: Show radius only if not Penugasan
-                              _buildRadiusCard(jarak, isInRadius, progress, cs),
-                            const SizedBox(height: 20),
-                            if (!(_jenis == 'Izin' || _jenis == 'Pulang Cepat' || _isPenugasan)) // NEW: No jenis dropdown, fixed from args
-                              const Text('Jenis: ${_jenis}'), // Show fixed jenis
-                            if (_jenis == 'Izin' || _jenis == 'Pulang Cepat') ...[
-                              _buildKeterangan(cs),
-                              const SizedBox(height: 20),
-                            ],
-                            if (_isPenugasan) ...[ // NEW: Informasi field
-                              _buildInformasi(cs),
-                              const SizedBox(height: 20),
-                            ],
-                            _buildSelfie(cs),
-                            if (_isPenugasan) ...[ // NEW: Dokumen field
-                              const SizedBox(height: 20),
-                              _buildDokumen(cs),
-                            ],
-                            const SizedBox(height: 28),
-                            _buildSubmitButtons(cs),
-                            const SizedBox(height: 30), // Extra space
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
             ),
     );
   }
-  // ================== WIDGETS WITH LIGHT GLASSMORPHISM ==================
-  BoxDecoration _glassDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.grey[200]!),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    );
-  }
+  // ================== WIDGETS WITH SIMPLE DESIGN ==================
   Widget _buildRadiusCard(
     double jarak,
     bool isInRadius,
-    double progress,
     ColorScheme cs,
   ) {
     return Container(
       width: double.infinity,
-      decoration: _glassDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -3276,7 +3143,7 @@ class _PresensiPageState extends State<PresensiPage> {
                 child: Icon(
                   isInRadius ? Icons.check_circle : Icons.cancel,
                   color: isInRadius ? Colors.green : Colors.red,
-                  size: 28,
+                  size: 32,
                 ),
               ),
               const SizedBox(width: 16),
@@ -3287,56 +3154,51 @@ class _PresensiPageState extends State<PresensiPage> {
                     Text(
                       isInRadius ? 'Dalam Area Sekolah' : 'Di Luar Area',
                       style: const TextStyle(
-                        color: Colors.black87,
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize: 20,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Jarak: ${jarak.toStringAsFixed(1)} m',
-                      style: TextStyle(color: Colors.black54, fontSize: 14),
+                      style: const TextStyle(color: Colors.black54, fontSize: 18),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          // progress bar
-          // const SizedBox(height: 16),
-          // SizedBox(
-          // height: 6,
-          // child: ClipRRect(
-          // borderRadius: BorderRadius.circular(4),
-          // child: LinearProgressIndicator(
-          // value: progress,
-          // backgroundColor: Colors.grey[200],
-          // valueColor: AlwaysStoppedAnimation<Color>(
-          // isInRadius ? Colors.green : Colors.red,
-          // ),
-          // ),
-          // ),
-          // ),
         ],
       ),
     );
   }
-  // REMOVED: Jenis dropdown - now fixed
   Widget _buildKeterangan(ColorScheme cs) {
     return Container(
-      decoration: _glassDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       padding: const EdgeInsets.all(16),
       child: TextField(
         controller: _ketC,
         maxLines: 3,
-        style: const TextStyle(color: Colors.black87),
+        style: const TextStyle(color: Colors.black, fontSize: 18),
         decoration: InputDecoration(
           labelText: 'Keterangan (alasan)',
-          labelStyle: const TextStyle(color: Colors.black54),
+          labelStyle: const TextStyle(color: Colors.black54, fontSize: 18),
           helperText: 'Wajib diisi untuk jenis ini',
-          helperStyle: const TextStyle(color: Colors.black54),
+          helperStyle: const TextStyle(color: Colors.black54, fontSize: 16),
           border: InputBorder.none,
-          prefixIcon: Icon(Icons.note, color: cs.primary),
+          prefixIcon: Icon(Icons.note, color: cs.primary, size: 32),
           filled: true,
           fillColor: Colors.transparent,
         ),
@@ -3346,19 +3208,30 @@ class _PresensiPageState extends State<PresensiPage> {
   // NEW: Informasi field for Penugasan
   Widget _buildInformasi(ColorScheme cs) {
     return Container(
-      decoration: _glassDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       padding: const EdgeInsets.all(16),
       child: TextField(
         controller: _infoC,
         maxLines: 4,
-        style: const TextStyle(color: Colors.black87),
+        style: const TextStyle(color: Colors.black, fontSize: 18),
         decoration: InputDecoration(
           labelText: 'Informasi Penugasan (detail tugas)',
-          labelStyle: const TextStyle(color: Colors.black54),
+          labelStyle: const TextStyle(color: Colors.black54, fontSize: 18),
           helperText: 'Wajib diisi, termasuk deskripsi penugasan',
-          helperStyle: const TextStyle(color: Colors.black54),
+          helperStyle: const TextStyle(color: Colors.black54, fontSize: 16),
           border: InputBorder.none,
-          prefixIcon: Icon(Icons.info_outline, color: cs.primary),
+          prefixIcon: Icon(Icons.info_outline, color: cs.primary, size: 32),
           filled: true,
           fillColor: Colors.transparent,
         ),
@@ -3367,7 +3240,18 @@ class _PresensiPageState extends State<PresensiPage> {
   }
   Widget _buildSelfie(ColorScheme cs) {
     return Container(
-      decoration: _glassDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
@@ -3381,10 +3265,10 @@ class _PresensiPageState extends State<PresensiPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            icon: Icon(Icons.camera_alt_outlined, color: cs.primary),
-            label: Text(
+            icon: Icon(Icons.camera_alt_outlined, color: cs.primary, size: 32),
+            label: const Text(
               'Ambil Selfie (Opsional)',
-              style: TextStyle(color: cs.primary),
+              style: TextStyle(fontSize: 18),
             ),
           ),
           if (_selfieFile != null) ...[
@@ -3406,7 +3290,18 @@ class _PresensiPageState extends State<PresensiPage> {
   // NEW: Dokumen picker for Penugasan
   Widget _buildDokumen(ColorScheme cs) {
     return Container(
-      decoration: _glassDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
@@ -3420,10 +3315,10 @@ class _PresensiPageState extends State<PresensiPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            icon: Icon(Icons.attachment, color: cs.primary),
+            icon: Icon(Icons.attachment, color: cs.primary, size: 32),
             label: const Text(
               'Unggah Dokumen Penugasan (Wajib)',
-              style: TextStyle(color: Colors.red), // Emphasize required
+              style: TextStyle(color: Colors.red, fontSize: 18), // Emphasize required
             ),
           ),
           if (_dokumenFile != null) ...[
@@ -3460,10 +3355,10 @@ class _PresensiPageState extends State<PresensiPage> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : Icon(Icons.send, color: Colors.white),
+                  : Icon(Icons.send, color: Colors.white, size: 32),
               label: Text(
                 _loading ? 'Mengirim...' : 'Kirim Presensi',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: cs.primary,
@@ -3485,7 +3380,7 @@ class _PresensiPageState extends State<PresensiPage> {
           ),
           child: IconButton(
             onPressed: _resetForm,
-            icon: Icon(Icons.refresh, color: cs.primary),
+            icon: Icon(Icons.refresh, color: cs.primary, size: 32),
             style: IconButton.styleFrom(
               backgroundColor: Colors.transparent,
               padding: const EdgeInsets.all(12),
@@ -3500,7 +3395,7 @@ class _PresensiPageState extends State<PresensiPage> {
 ```
 
 ```dart
-// pages/register_page.dart (UPDATED: Send isKaryawan to API; NIP required if not karyawan)
+// pages/register_page.dart (UPDATED: Larger fonts, high contrast)
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 class RegisterPage extends StatefulWidget {
@@ -3533,7 +3428,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (res['status'] == 'success') {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registrasi berhasil, silakan login')),
+          const SnackBar(content: Text('Registrasi berhasil, silakan login', style: TextStyle(fontSize: 18))),
         );
         Navigator.pop(context);
       } else {
@@ -3546,7 +3441,7 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: const TextStyle(fontSize: 18))));
   }
   @override
   void dispose() {
@@ -3562,7 +3457,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Daftar Akun'),
+        title: const Text('Daftar Akun', style: TextStyle(fontSize: 22)),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
@@ -3619,20 +3514,20 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: Column(
                           children: [
                             const SizedBox(height: 8),
-                            Text(
+                            const Text(
                               'Buat Akun Baru',
                               style: TextStyle(
-                                fontSize: 24,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
+                            const Text(
                               'Bergabunglah dengan Skaduta Presensi',
                               style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 18,
+                                color: Colors.white,
                               ),
                             ),
                           ],
@@ -3667,13 +3562,16 @@ class _RegisterPageState extends State<RegisterPage> {
                                   prefixIcon: Icon(
                                     Icons.person_outline,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.7),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Username wajib diisi';
@@ -3689,13 +3587,16 @@ class _RegisterPageState extends State<RegisterPage> {
                                   prefixIcon: Icon(
                                     Icons.badge_outlined,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.7),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Nama wajib diisi';
@@ -3718,13 +3619,13 @@ class _RegisterPageState extends State<RegisterPage> {
                                   onChanged: (val) {
                                     setState(() => _isKaryawan = val ?? false);
                                   },
-                                  title: Text(
+                                  title: const Text(
                                     'Saya Karyawan',
-                                    style: TextStyle(color: cs.primary),
+                                    style: TextStyle(fontSize: 18),
                                   ),
                                   subtitle: const Text(
                                     'Jika karyawan, NIP/NISN boleh dikosongkan',
-                                    style: TextStyle(fontSize: 12),
+                                    style: TextStyle(fontSize: 16),
                                   ),
                                   controlAffinity:
                                       ListTileControlAffinity.leading,
@@ -3741,13 +3642,16 @@ class _RegisterPageState extends State<RegisterPage> {
                                     prefixIcon: Icon(
                                       Icons.credit_card_outlined,
                                       color: cs.primary,
+                                      size: 32,
                                     ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     filled: true,
                                     fillColor: Colors.white.withOpacity(0.7),
+                                    labelStyle: const TextStyle(fontSize: 18),
                                   ),
+                                  style: const TextStyle(fontSize: 18),
                                   validator: (v) {
                                     if (!_isKaryawan) {
                                       if (v == null || v.trim().isEmpty) {
@@ -3767,6 +3671,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   prefixIcon: Icon(
                                     Icons.lock_outline,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
@@ -3784,7 +3689,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.7),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) {
                                     return 'Password wajib diisi';
@@ -3803,25 +3710,28 @@ class _RegisterPageState extends State<RegisterPage> {
                                   prefixIcon: Icon(
                                     Icons.security_outlined,
                                     color: cs.primary,
+                                    size: 32,
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   filled: true,
                                   fillColor: Colors.white.withOpacity(0.7),
+                                  labelStyle: const TextStyle(fontSize: 18),
                                 ),
+                                style: const TextStyle(fontSize: 18),
                                 items: const [
                                   DropdownMenuItem(
                                     value: 'user',
-                                    child: Text('User (Guru / Karyawan)'),
+                                    child: Text('User (Guru / Karyawan)', style: TextStyle(fontSize: 18)),
                                   ),
                                   DropdownMenuItem(
                                     value: 'admin',
-                                    child: Text('Admin'),
+                                    child: Text('Admin', style: TextStyle(fontSize: 18)),
                                   ),
                                   DropdownMenuItem(
                                     value: 'superadmin',
-                                    child: Text('Super Admin'),
+                                    child: Text('Super Admin', style: TextStyle(fontSize: 18)),
                                   ),
                                 ],
                                 onChanged: (val) {
@@ -3864,7 +3774,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                           'Daftar Sekarang',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontSize: 20,
                                           ),
                                         ),
                                 ),
@@ -3887,7 +3797,140 @@ class _RegisterPageState extends State<RegisterPage> {
 ```
 
 ```dart
-// pages/user_management_page.dart (NO CHANGES)
+// pages/rekap_page.dart (NEW: Rekap page with per user table and pivot summary)
+import 'package:flutter/material.dart';
+import '../api/api_service.dart';
+class RekapPage extends StatefulWidget {
+  const RekapPage({super.key});
+  @override
+  State<RekapPage> createState() => _RekapPageState();
+}
+class _RekapPageState extends State<RekapPage> {
+  bool _loading = false;
+  List<dynamic> _data = [];
+  String _month = DateTime.now().month.toString().padLeft(2, '0');
+  String _year = DateTime.now().year.toString();
+  Map<String, List<Map<String, dynamic>>> _perUser = {};
+  Map<String, Map<String, String>> _pivot = {};
+  List<String> _dates = [];
+  @override
+  void initState() {
+    super.initState();
+    _loadRekap();
+  }
+  Future<void> _loadRekap() async {
+    setState(() => _loading = true);
+    try {
+      final data = await ApiService.getRekap(month: _month, year: _year);
+      setState(() => _data = data);
+      _processData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal ambil rekap: $e', style: const TextStyle(fontSize: 18))),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+  void _processData() {
+    _perUser.clear();
+    _pivot.clear();
+    _dates.clear();
+    for (var item in _data) {
+      final nama = item['nama_lengkap'] ?? 'Unknown';
+      final tgl = item['created_at'].substring(0, 10);
+      final jenis = item['jenis'] ?? '';
+      final status = item['status'] ?? 'Pending';
+      final ket = item['keterangan'] ?? '-';
+      _perUser.putIfAbsent(nama, () => []);
+      _perUser[nama]!.add({
+        'tgl': tgl,
+        'jenis': jenis,
+        'status': status,
+        'ket': ket,
+      });
+      // For pivot
+      _pivot.putIfAbsent(nama, () => {});
+      _pivot[nama]![tgl] = jenis; // Simple: show jenis per date
+      if (!_dates.contains(tgl)) _dates.add(tgl);
+    }
+    _dates.sort(); // Sort dates
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rekap Absensi', style: TextStyle(fontSize: 22)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 28),
+            onPressed: _loadRekap,
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Rekap Per User', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                  _buildPerUserTable(),
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Summary Pivot', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                  _buildPivotTable(),
+                ],
+              ),
+            ),
+    );
+  }
+  Widget _buildPerUserTable() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _perUser.length,
+      itemBuilder: (ctx, i) {
+        final nama = _perUser.keys.elementAt(i);
+        final items = _perUser[nama]!;
+        return ExpansionTile(
+          title: Text(nama, style: const TextStyle(fontSize: 18)),
+          children: items.map((item) => ListTile(
+            title: Text('Tgl: ${item['tgl']} - Jenis: ${item['jenis']}', style: const TextStyle(fontSize: 16)),
+            subtitle: Text('Status: ${item['status']} - Ket: ${item['ket']}', style: const TextStyle(fontSize: 16)),
+          )).toList(),
+        );
+      },
+    );
+  }
+  Widget _buildPivotTable() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columns: [
+          const DataColumn(label: Text('Nama', style: TextStyle(fontSize: 18))),
+          ..._dates.map((tgl) => DataColumn(label: Text(tgl, style: const TextStyle(fontSize: 16)))),
+        ],
+        rows: _pivot.keys.map((nama) {
+          return DataRow(
+            cells: [
+              DataCell(Text(nama, style: const TextStyle(fontSize: 16))),
+              ..._dates.map((tgl) => DataCell(Text(_pivot[nama]![tgl] ?? '-', style: const TextStyle(fontSize: 16)))),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+```
+
+```dart
+// pages/user_management_page.dart (UPDATED: Simplified UI)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
@@ -3913,7 +3956,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memuat user: $e')));
+        ).showSnackBar(SnackBar(content: Text('Gagal memuat user: $e', style: const TextStyle(fontSize: 18))));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -3922,23 +3965,23 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Future<void> _deleteUser(String id, String role) async {
     if (role == 'superadmin') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak boleh menghapus superadmin')),
+        const SnackBar(content: Text('Tidak boleh menghapus superadmin', style: TextStyle(fontSize: 18))),
       );
       return;
     }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Hapus User'),
-        content: const Text('Yakin ingin menghapus user ini?'),
+        title: const Text('Hapus User', style: TextStyle(fontSize: 20)),
+        content: const Text('Yakin ingin menghapus user ini?', style: TextStyle(fontSize: 18)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
+            child: const Text('Batal', style: TextStyle(fontSize: 18)),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Hapus'),
+            child: const Text('Hapus', style: TextStyle(fontSize: 18)),
           ),
         ],
       ),
@@ -3947,7 +3990,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final res = await ApiService.deleteUser(id);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(res['message'] ?? 'User dihapus')));
+    ).showSnackBar(SnackBar(content: Text(res['message'] ?? 'User dihapus', style: const TextStyle(fontSize: 18))));
     _loadUsers();
   }
   Future<void> _editUser(Map<String, dynamic> user) async {
@@ -3969,7 +4012,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             children: [
               const Text(
                 'Edit User',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -3979,6 +4022,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   prefixIcon: Icon(Icons.person_outline),
                   border: OutlineInputBorder(),
                 ),
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -3988,6 +4032,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   prefixIcon: Icon(Icons.badge_outlined),
                   border: OutlineInputBorder(),
                 ),
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -3998,12 +4043,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   prefixIcon: Icon(Icons.lock_outline),
                   border: OutlineInputBorder(),
                 ),
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () async {
+                  onPressed: async {
                     final res = await ApiService.updateUser(
                       id: user['id'].toString(),
                       username: usernameC.text.trim(),
@@ -4015,7 +4061,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       Navigator.pop(ctx, ok);
                     }
                   },
-                  child: const Text('Simpan Perubahan'),
+                  child: const Text('Simpan Perubahan', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ],
@@ -4027,7 +4073,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _loadUsers();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('User diperbarui')));
+      ).showSnackBar(const SnackBar(content: Text('User diperbarui', style: TextStyle(fontSize: 18))));
     }
   }
   @override
@@ -4035,7 +4081,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kelola User & Admin'),
+        title: const Text('Kelola User & Admin', style: TextStyle(fontSize: 22)),
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -4074,23 +4120,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     child: ListTile(
                       leading: CircleAvatar(
                         backgroundColor: badgeColor.withOpacity(0.2),
+                        radius: 30,
                         child: Text(
                           (u['username'] ?? '?')
                               .toString()
                               .substring(0, 1)
                               .toUpperCase(),
-                          style: TextStyle(color: badgeColor),
+                          style: TextStyle(color: badgeColor, fontSize: 20),
                         ),
                       ),
-                      title: Text(u['nama_lengkap'] ?? ''),
+                      title: Text(u['nama_lengkap'] ?? '', style: const TextStyle(fontSize: 18)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(u['username'] ?? ''),
+                          Text(u['username'] ?? '', style: const TextStyle(fontSize: 16)),
                           if ((u['nip_nisn'] ?? '').toString().isNotEmpty)
                             Text(
                               'NIP/NISN: ${u['nip_nisn']}',
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 14),
                             ),
                         ],
                       ),
@@ -4109,21 +4156,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             child: Text(
                               roleLabel,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 14,
                                 color: badgeColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.edit_outlined),
+                            icon: const Icon(Icons.edit_outlined, size: 28),
                             onPressed: () => _editUser(u),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline),
+                            icon: const Icon(Icons.delete_outline, size: 28),
                             onPressed: () =>
                                 _deleteUser(u['id'].toString(), role),
-                            color: cs.error,
+                            color: Colors.red,
                           ),
                         ],
                       ),
@@ -4136,65 +4183,3 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 }
 ```
-
-```sql
--- Schema (FINAL: Validated - Expanded ENUM for jenis to include Penugasan types; added 'informasi' TEXT and 'dokumen' VARCHAR(255) to absensi; no new tables needed. Compatible with MySQL.)
--- Note: ENUM for jenis uses strings like 'Penugasan_Masuk' for easy filtering. Status auto-set in PHP for biasa types.
-
-DROP TABLE IF EXISTS absensi;
-DROP TABLE IF EXISTS users;
-
-CREATE TABLE users (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  username VARCHAR(255) NOT NULL,
-  nama_lengkap VARCHAR(255) NOT NULL,
-  nip_nisn VARCHAR(255) DEFAULT NULL,  -- Optional for karyawan (validated in PHP/Flutter), required for guru
-  password VARCHAR(255) NOT NULL,
-  role ENUM('user','admin','superadmin') DEFAULT 'user',
-  PRIMARY KEY (id)
-);
-
-CREATE TABLE absensi (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  jenis ENUM('Masuk','Pulang','Izin','Pulang Cepat','Penugasan_Masuk','Penugasan_Pulang','Penugasan_Full'),
-  keterangan TEXT,
-  informasi TEXT,  -- For Penugasan details (wajib)
-  dokumen VARCHAR(255),  -- Path to uploaded dokumen (wajib for Penugasan)
-  selfie VARCHAR(255),
-  latitude VARCHAR(100),
-  longitude VARCHAR(100),
-  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Example insert for testing (optional):
--- INSERT INTO users (username, nama_lengkap, nip_nisn, password, role) VALUES ('testuser', 'Test User', '123456', '$2y$10$examplehash', 'user');
--- INSERT INTO absensi (user_id, jenis, keterangan, informasi, dokumen, selfie, latitude, longitude, status) VALUES (1, 'Masuk', '', '', '', '', '-7.777', '110.367', 'Disetujui');
-```
-
-
-grog kamu bisa perbaiki ada code yang eror sama untuk bagian 
-- izin 
-- penugasan ( untuk semuanya masuk pulang full )
-
-untuk map nya g usah munculin jadi ui untuk absenya di ubah aja g usah pakai map sama untuk rekap absensi semua user tambahkan juga menunya untuk admin jadi nanti saat di rekap jadi kayak tabel exel yang di masukan di rekap untuk setiap user 
-
-
-ini contoh untuk rekap per user
-
-nama user | hari tgl | keterangan | jenis absen | 
-nama | 21/11/2025 | di setujui | absen masuk |
-
-ini contoh untuk semua user gitu 
-
-nama | tgl 1 + sampai seterusnya ( 21/11/1015 ) (21/12/2025 )
-nama | masuk | izin | masuk 
-nama | masuk | izin | masuk 
-
-sama untuk pewarnaan tema ui ux sesuwaikan untuk penggunaan orang tua jadi yang memakai nanti gruru karyawan dan pasti ada yang orang tua jadi harus sesuwai
-
-sama ini juga untuk absen masuk / pulang biasa itu kan ada map dan selfe itu edit ui ux nya agar sederhana simpel aja gitu 
-
-dan ketikan semua codenya semuanya dari php dan flutternya 

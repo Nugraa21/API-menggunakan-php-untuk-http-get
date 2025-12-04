@@ -1,5 +1,5 @@
 <?php
-// delete_user.php
+// delete_user.php (NO CHANGES)
 include "config.php";
 header('Content-Type: application/json');
 ini_set('display_errors', 0);

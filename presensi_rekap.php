@@ -1,5 +1,5 @@
 <?php
-// presensi_rekap.php (standarisasi ke status, return konsisten dengan absen_admin_list.php)
+// presensi_rekap.php (UPDATED: Include new fields informasi and dokumen)
 include 'config.php';
 // Header JSON
 header('Content-Type: application/json');

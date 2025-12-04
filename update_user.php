@@ -1,5 +1,5 @@
 <?php
-// update_user.php (versi lengkap dengan optional password)
+// update_user.php (NO CHANGES)
 include "config.php";
 header('Content-Type: application/json');
 ini_set('display_errors', 0);
