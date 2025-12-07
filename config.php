@@ -5,7 +5,7 @@ header("Content-Type: application/json");
 
 $host = "localhost";
 $user = "root";
-$pass = "";
+$pass = "081328nugra";
 // $db   = "database_smk_2";
 $db   = "database_smk_4";
 // $db   = "skaduta_presensi";
