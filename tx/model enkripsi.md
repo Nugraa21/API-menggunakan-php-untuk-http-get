@@ -634,7 +634,8 @@ Ini adalah code php untuk backend dan kamu apakah bisa tambahkan untuk code ini 
 - Anti SQL Injection Menggunakan prepared statement Mencegah query manipulasi
 - Session Flood Protection Simpan request timestamp per IP 	Cegah spam cepat
 - Rate Limiting Anti-spam & anti-DDOS ringan
-- Device ID Limit 	Batasi login per device 
+
+untuk device id g usah pakai 
 
 jadi untuk encripsi itu kayak end to end di server data jsonya di encripsi nah di flutternya membuka encripsinya jadi agar datanya juga bisa terbaca gitu tau lah untuk key nya (nugra21)
 
