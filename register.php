@@ -1,6 +1,5 @@
 <?php
-// register.php (UPDATED: NIP/NISN now required for 'guru' but optional for 'karyawan' - but since role is 'user', assume checkbox handles it; no schema change needed)
-include "config.php";
+// register.php 
 $username = $_POST["username"] ?? '';
 $nama = $_POST["nama_lengkap"] ?? '';
 $nip_nisn = $_POST["nip_nisn"] ?? '';

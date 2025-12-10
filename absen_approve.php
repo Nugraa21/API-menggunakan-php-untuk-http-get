@@ -1,5 +1,5 @@
 <?php
-// absen_approve.php (NO CHANGES - remains the same, used for manual approve if needed)
+// absen_approve.php 
 include "config.php";
 $id = $_POST['id'];
 $status = $_POST['status']; // Disetujui / Ditolak

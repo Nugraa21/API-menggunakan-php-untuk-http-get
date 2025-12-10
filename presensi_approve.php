@@ -1,5 +1,5 @@
 <?php
-// presensi_approve.php (NO CHANGES - now used for approving Izin and Penugasan types)
+// presensi_approve.php 
 include 'config.php';
 header('Content-Type: application/json');
 ini_set('display_errors', 0);

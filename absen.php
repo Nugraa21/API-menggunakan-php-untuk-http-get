@@ -1,6 +1,5 @@
 <?php
 // absen.php
-// FINAL VERSION – 100% SESUAI DENGAN FLUTTER PRESENSI TERBARU (Izin tanpa lokasi, Penugasan wajib dokumen, status otomatis)
 
 include "config.php";
 
