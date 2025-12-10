@@ -1,21 +1,20 @@
 <?php
-// get_users.php (NO CHANGES)
-include "config.php";
-header('Content-Type: application/json');
+error_reporting(0);
 ini_set('display_errors', 0);
+include "config.php";
+include "encryption.php";
+header('Content-Type: application/json');
+
 $sql = "SELECT id, username, nama_lengkap, nip_nisn, role FROM users ORDER BY id DESC";
 $run = mysqli_query($conn, $sql);
-if (!$run) {
-    echo json_encode(["status" => "error", "message" => mysqli_error($conn)]);
-    exit;
-}
 $data = [];
 while ($row = mysqli_fetch_assoc($run)) {
     $data[] = $row;
 }
-echo json_encode([
-    "status" => "success",
-    "message" => "Data user berhasil dimuat",
-    "data" => $data
-]);
+
+$response = ["status" => "success", "data" => $data];
+$json = json_encode($response, JSON_UNESCAPED_UNICODE);
+$encrypted = Encryption::encrypt($json);
+
+echo json_encode(["encrypted_data" => $encrypted]);
 ?>

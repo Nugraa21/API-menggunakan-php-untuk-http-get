@@ -1,13 +1,21 @@
 <?php
-// presensi_user_history.php (DEPRECATED - use absen_history.php, NO CHANGES if kept)
-include 'config.php';
-$user_id = $_GET['user_id'];
+error_reporting(0);
+ini_set('display_errors', 0);
+include "config.php";
+include "encryption.php";
+header('Content-Type: application/json');
+
+$user_id = $_GET['user_id'] ?? '';
 $sql = "SELECT * FROM absensi WHERE user_id='$user_id' ORDER BY id DESC";
 $result = $conn->query($sql);
 $data = [];
 while ($row = $result->fetch_assoc()) {
-    $row['status'] = $row['status'] ?? 'Pending';
     $data[] = $row;
 }
-echo json_encode(["status" => true, "data" => $data]);
+
+$response = ["status" => true, "data" => $data];
+$json = json_encode($response, JSON_UNESCAPED_UNICODE);
+$encrypted = Encryption::encrypt($json);
+
+echo json_encode(["encrypted_data" => $encrypted]);
 ?>

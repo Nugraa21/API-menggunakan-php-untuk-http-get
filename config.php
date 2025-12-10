@@ -1,23 +1,16 @@
 <?php
-// <!-- config.php -->
 header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json");
+header("Content-Type: application/json; charset=UTF-8");
 
 $host = "localhost";
 $user = "root";
 $pass = "081328nugra";
-// $db   = "database_smk_2";
 $db   = "database_smk_4";
-// $db   = "skaduta_presensi";
 
 $conn = mysqli_connect($host, $user, $pass, $db);
 
 if (!$conn) {
-    echo json_encode([
-        "status" => "error",
-        "message" => "Gagal koneksi database"
-    ]);
+    echo json_encode(["status" => "error", "message" => "Gagal koneksi database"]);
     exit;
 }
 ?>
-
