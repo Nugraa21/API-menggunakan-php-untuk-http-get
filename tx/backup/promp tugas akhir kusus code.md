@@ -652,7 +652,7 @@ if ($update) {
 ### Catatan:
 - Karena aplikasinya **mobile**, fitur “CORS Safe Policy” tidak perlu ditambahkan.
 - Jika ada fitur yang butuh kode Flutter/Dart, beri tahu saya, nanti saya minta file Flutter yang diperlukan.
-        
+          
           
 Ini ada penambahan untuk keamananya kamu bisa langsung ketikan semua code yang ada perubahan jadi code yang ada perubahan setiap codenya ketikan semuanya kalau code yang tidak ada perubahan tidak usah di ketikan kalau code yang membutuhkan flutter /  dart kasih tau aku akan kirim code flutternya 
   
