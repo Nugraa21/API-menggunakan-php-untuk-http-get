@@ -413,7 +413,7 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // Auto Refresh setiap 30 detik
-setInterval(() => location.reload(), 0);
+setInterval(() => location.reload(), 30000);
 
 // Chart 7 Hari
 new Chart(document.getElementById('chart7'), {
