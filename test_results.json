@@ -1,0 +1,69 @@
+{
+    "test_root_endpoint": {
+        "status_code": 200,
+        "content_type": "text/html; charset=UTF-8",
+        "response_preview": "<!DOCTYPE html>\r\n<html lang=\"id\">\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <title>API Service</title>\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n    <style>\r\n        "
+    },
+    "test_login_success": {
+        "response": {
+            "status": true,
+            "message": "Login berhasil",
+            "user": {
+                "id": "1",
+                "nama_lengkap": "nugraha",
+                "role": "superadmin"
+            },
+            "token": "9350bc25b745c329b123c00b46ca2e13b1573fb3b121b368697518678bdbc663"
+        },
+        "success": true,
+        "user": {
+            "id": "1",
+            "nama_lengkap": "nugraha",
+            "role": "superadmin"
+        },
+        "token": "9350bc25b745c329b123c00b46ca2e13b1573fb3b121b368697518678bdbc663"
+    },
+    "test_login_fail": {
+        "response": {
+            "status": false,
+            "message": "Username atau password salah"
+        }
+    },
+    "test_bruteforce": [
+        {
+            "attempt_number": 1,
+            "response": {
+                "status": false,
+                "message": "Username atau password salah"
+            }
+        },
+        {
+            "attempt_number": 2,
+            "response": {
+                "status": false,
+                "message": "Username atau password salah"
+            }
+        },
+        {
+            "attempt_number": 3,
+            "response": {
+                "status": false,
+                "message": "Username atau password salah"
+            }
+        },
+        {
+            "attempt_number": 4,
+            "response": {
+                "status": false,
+                "message": "Username atau password salah"
+            }
+        },
+        {
+            "attempt_number": 5,
+            "response": {
+                "status": false,
+                "message": "Username atau password salah"
+            }
+        }
+    ]
+}
