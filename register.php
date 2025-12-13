@@ -1,46 +1,62 @@
 <?php
-// register.php (UPDATED: NIP/NISN now required for 'guru' but optional for 'karyawan' - but since role is 'user', assume checkbox handles it; no schema change needed)
 include "config.php";
-$username = $_POST["username"] ?? '';
-$nama = $_POST["nama_lengkap"] ?? '';
-$nip_nisn = $_POST["nip_nisn"] ?? '';
-$password_raw = $_POST["password"] ?? '';
-$role = $_POST["role"] ?? 'user';
-$is_karyawan = $_POST["is_karyawan"] ?? false; // NEW: From Flutter checkbox
-if ($username == "" || $nama == "" || $password_raw == "") {
+randomDelay();
+validateApiKey();
+
+$raw = file_get_contents('php://input');
+$data = json_decode($raw, true);
+if (!$data) $data = $_POST;
+
+$username = sanitizeInput($data['username'] ?? '');
+$nama = sanitizeInput($data['nama_lengkap'] ?? '');
+$nip_nisn = sanitizeInput($data['nip_nisn'] ?? '');
+$password_raw = $data['password'] ?? '';
+$role = sanitizeInput($data['role'] ?? 'user');
+$is_karyawan = !empty($data['is_karyawan']);
+
+if (empty($username) || empty($nama) || empty($password_raw)) {
     echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
     exit;
 }
-// NEW: Validate NIP/NISN - required if not karyawan
-if (!$is_karyawan && empty($nip_nisn)) {
-    echo json_encode(["status" => "error", "message" => "NIP/NISN wajib untuk guru!"]);
+
+if (strlen($password_raw) < 6) {
+    echo json_encode(["status" => "error", "message" => "Password minimal 6 karakter"]);
     exit;
 }
+
+if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
+    echo json_encode(["status" => "error", "message" => "Username tidak valid"]);
+    exit;
+}
+
+if (!$is_karyawan && empty($nip_nisn)) {
+    echo json_encode(["status" => "error", "message" => "NIP/NISN wajib diisi"]);
+    exit;
+}
+
 $password = password_hash($password_raw, PASSWORD_DEFAULT);
-// Cek admin hanya boleh 1
-if ($role == "admin") {
-    $cek = mysqli_query($conn, "SELECT id FROM users WHERE role='admin'");
-    if (mysqli_num_rows($cek) > 0) {
-        echo json_encode(["status" => "error", "message" => "Admin sudah ada"]);
+
+if (in_array($role, ['admin', 'superadmin'])) {
+    $check = $conn->prepare("SELECT id FROM users WHERE role = ?");
+    $check->bind_param("s", $role);
+    $check->execute();
+    $check->store_result();
+    if ($check->num_rows > 0) {
+        echo json_encode(["status" => "error", "message" => ucfirst($role) . " sudah ada"]);
         exit;
     }
+    $check->close();
 }
-// Cek superadmin hanya boleh 1
-if ($role == "superadmin") {
-    $cek = mysqli_query($conn, "SELECT id FROM users WHERE role='superadmin'");
-    if (mysqli_num_rows($cek) > 0) {
-        echo json_encode(["status" => "error", "message" => "Superadmin sudah ada"]);
-        exit;
-    }
-}
-$sql = "INSERT INTO users (username, nama_lengkap, nip_nisn, password, role)
-        VALUES ('$username', '$nama', '$nip_nisn', '$password', '$role')";
-if (mysqli_query($conn, $sql)) {
+
+$stmt = $conn->prepare("INSERT INTO users (username, nama_lengkap, nip_nisn, password, role) VALUES (?, ?, ?, ?, ?)");
+$stmt->bind_param("sssss", $username, $nama, $nip_nisn, $password, $role);
+
+if ($stmt->execute()) {
     echo json_encode(["status" => "success", "message" => "Akun berhasil dibuat"]);
 } else {
-    echo json_encode([
-        "status" => "error",
-        "message" => "Gagal daftar: " . mysqli_error($conn)
-    ]);
+    echo json_encode(["status" => "error", "message" => "Gagal mendaftar"]);
 }
+
+$stmt->close();
+$conn->close();
 ?>

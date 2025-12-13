@@ -2,8 +2,6 @@
 error_reporting(0);
 ini_set('display_errors', 0);
 include "config.php";
-randomDelay();
-validateApiKey();
 include "encryption.php";
 header('Content-Type: application/json');
 

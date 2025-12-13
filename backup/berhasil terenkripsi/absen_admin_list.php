@@ -2,17 +2,17 @@
 error_reporting(0);
 ini_set('display_errors', 0);
 include "config.php";
-randomDelay();
-validateApiKey();
 include "encryption.php";
 header('Content-Type: application/json');
 
-$user_id = $_GET['user_id'] ?? '';
-$sql = "SELECT * FROM absensi WHERE user_id='$user_id' ORDER BY id DESC";
-$result = $conn->query($sql);
+$q = $conn->query("SELECT absensi.*, users.nama_lengkap
+                   FROM absensi
+                   JOIN users ON users.id = absensi.user_id
+                   ORDER BY absensi.id DESC");
+
 $data = [];
-while ($row = $result->fetch_assoc()) {
-    $data[] = $row;
+while ($r = $q->fetch_assoc()) {
+    $data[] = $r;
 }
 
 $response = ["status" => true, "data" => $data];

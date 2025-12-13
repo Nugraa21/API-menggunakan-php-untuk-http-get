@@ -1,30 +1,48 @@
 <?php
-// presensi_approve.php 
-include 'config.php';
-header('Content-Type: application/json');
-ini_set('display_errors', 0);
-error_reporting(E_ALL);
-$id = trim($_POST['id'] ?? '');
-$status = trim($_POST['status'] ?? ''); // Disetujui / Ditolak
+include "config.php";
+randomDelay();
+validateApiKey();
+
+$raw = file_get_contents('php://input');
+$data = json_decode($raw, true);
+
+if (!$data) {
+    echo json_encode(["status" => false, "message" => "Data tidak diterima"]);
+    exit;
+}
+
+$id = $data['id'] ?? '';
+$status = $data['status'] ?? '';
+
 if (empty($id) || empty($status)) {
     echo json_encode(["status" => false, "message" => "ID atau status kosong"]);
     exit;
 }
-// Cek ID ada atau tidak
-$check = mysqli_query($conn, "SELECT id FROM absensi WHERE id = '$id'");
-if (!$check) {
-    echo json_encode(["status" => false, "message" => "Query check gagal: " . mysqli_error($conn)]);
+
+if (!in_array($status, ['Disetujui', 'Ditolak'])) {
+    echo json_encode(["status" => false, "message" => "Status tidak valid"]);
     exit;
 }
-if (mysqli_num_rows($check) == 0) {
-    echo json_encode(["status" => false, "message" => "ID '$id' tidak ditemukan"]);
+
+// Update status
+$stmt = $conn->prepare("UPDATE absensi SET status = ? WHERE id = ?");
+if (!$stmt) {
+    echo json_encode(["status" => false, "message" => "Prepare failed: " . $conn->error]);
     exit;
 }
-// Update sesuai kolom yang ADA di tabel
-$sql = "UPDATE absensi SET status = '$status' WHERE id = '$id'";
-if ($conn->query($sql)) {
-    echo json_encode(["status" => true, "message" => "Status berhasil diupdate ke '$status'"]);
+
+$stmt->bind_param("si", $status, $id);
+
+if ($stmt->execute()) {
+    if ($stmt->affected_rows > 0) {
+        echo json_encode(["status" => true, "message" => "Status berhasil diubah menjadi '$status'"]);
+    } else {
+        echo json_encode(["status" => false, "message" => "ID presensi tidak ditemukan"]);
+    }
 } else {
-    echo json_encode(["status" => false, "message" => "Query update gagal: " . mysqli_error($conn)]);
+    echo json_encode(["status" => false, "message" => "Gagal update: " . $stmt->error]);
 }
+
+$stmt->close();
+$conn->close();
 ?>

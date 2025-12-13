@@ -2,20 +2,17 @@
 error_reporting(0);
 ini_set('display_errors', 0);
 include "config.php";
-randomDelay();
-validateApiKey();
 include "encryption.php";
 header('Content-Type: application/json');
 
-$user_id = $_GET['user_id'] ?? '';
-$sql = "SELECT * FROM absensi WHERE user_id='$user_id' ORDER BY id DESC";
-$result = $conn->query($sql);
+$sql = "SELECT id, username, nama_lengkap, nip_nisn, role FROM users ORDER BY id DESC";
+$run = mysqli_query($conn, $sql);
 $data = [];
-while ($row = $result->fetch_assoc()) {
+while ($row = mysqli_fetch_assoc($run)) {
     $data[] = $row;
 }
 
-$response = ["status" => true, "data" => $data];
+$response = ["status" => "success", "data" => $data];
 $json = json_encode($response, JSON_UNESCAPED_UNICODE);
 $encrypted = Encryption::encrypt($json);
 
