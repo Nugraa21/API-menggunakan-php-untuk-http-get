@@ -6,6 +6,7 @@
  */
 
 require_once "config.php";
+// require_once "security_sql.php";
 
 // ===================== SECURITY HEADERS =====================
 header('Content-Type: application/json');

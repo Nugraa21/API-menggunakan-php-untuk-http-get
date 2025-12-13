@@ -28,17 +28,56 @@ if (!$conn) {
     exit;
 }
 
-// Helper functions
 function validateApiKey() {
     $headers = function_exists('getallheaders') ? getallheaders() : [];
     $key = $headers['X-App-Key'] ?? $_SERVER['HTTP_X_APP_KEY'] ?? '';
+
     if ($key !== API_SECRET_KEY) {
-        header('Content-Type: application/json');
         http_response_code(401);
-        echo json_encode(["status" => false, "message" => "Hayo mau ngapain"]);
+        header('Content-Type: text/html; charset=UTF-8');
+
+        echo '
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <title>Akses Ditolak</title>
+            <style>
+                body {
+                    margin: 0;
+                    height: 100vh;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-family: Arial, sans-serif;
+                    background: #f8fafc;
+                    color: #1e293b;
+                }
+                .container {
+                    text-align: center;
+                }
+                h1 {
+                    font-size: 22px;
+                    margin-bottom: 6px;
+                }
+                p {
+                    font-size: 14px;
+                    color: #64748b;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Akses tidak diizinkan</h1>
+                <p>Endpoint ini tidak dapat diakses secara langsung.</p>
+            </div>
+        </body>
+        </html>
+        ';
         exit;
     }
 }
+
 
 function randomDelay() {
     $delay = rand(300000, 1000000); // 0.3 – 1 detik

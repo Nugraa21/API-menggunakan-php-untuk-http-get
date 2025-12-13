@@ -131,9 +131,55 @@ def test_api_key():
 
 def test_sql_injection():
     header("SQL INJECTION TEST")
-    payload = {"username": "' OR '1'='1", "password": "x"}
-    r = requests.post(BASE_URL + LOGIN_ENDPOINT, headers=HEADERS_OK, json=payload)
-    log_result("SQL Injection", r.status_code in [401, 403], f"HTTP {r.status_code}")
+
+    sql_payloads = [
+        # === Basic Auth Bypass ===
+        {"username": "' OR '1'='1", "password": "x"},
+        {"username": "' OR 1=1 --", "password": "x"},
+        {"username": "' OR 1=1#", "password": "x"},
+        {"username": "' OR 'a'='a", "password": "x"},
+
+        # === Boolean-based ===
+        {"username": "admin' AND 1=1 --", "password": "x"},
+        {"username": "admin' AND 1=2 --", "password": "x"},
+
+        # === Comment Injection ===
+        {"username": "admin'--", "password": ""},
+        {"username": "admin'#", "password": ""},
+        {"username": "admin'/*", "password": ""},
+
+        # === UNION-based ===
+        {"username": "' UNION SELECT 1,2,3 --", "password": "x"},
+        {"username": "' UNION SELECT null,null,null --", "password": "x"},
+
+        # === Error-based ===
+        {"username": "'", "password": "x"},
+        {"username": "\"", "password": "x"},
+        {"username": "' OR '", "password": "x"},
+
+        # === Time-based (MySQL / MariaDB) ===
+        {"username": "' OR SLEEP(5)--", "password": "x"},
+        {"username": "' AND SLEEP(5)--", "password": "x"},
+    ]
+
+    for i, payload in enumerate(sql_payloads, start=1):
+        start = time.time()
+        r = requests.post(
+            BASE_URL + LOGIN_ENDPOINT,
+            headers=HEADERS_OK,
+            json=payload,
+            timeout=TIMEOUT
+        )
+        elapsed = time.time() - start
+
+        # Aman jika ditolak (401/403) & tidak delay lama
+        secure = r.status_code in [401, 403] and elapsed < 3
+
+        log_result(
+            f"SQL Injection #{i}",
+            secure,
+            f"HTTP {r.status_code}, Time {elapsed:.2f}s"
+        )
 
 def test_xss():
     header("XSS TEST")
