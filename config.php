@@ -34,7 +34,7 @@ function validateApiKey() {
     if ($key !== API_SECRET_KEY) {
         header('Content-Type: application/json');
         http_response_code(401);
-        echo json_encode(["status" => false, "message" => "Unauthorized: Invalid API Key"]);
+        echo json_encode(["status" => false, "message" => "Hayo mau ngapain"]);
         exit;
     }
 }
