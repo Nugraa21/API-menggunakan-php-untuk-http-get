@@ -615,6 +615,37 @@ if ($update) {
 }
 ?>
 ```  
+```sql
+DROP TABLE IF EXISTS absensi;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  username VARCHAR(255) NOT NULL,
+  nama_lengkap VARCHAR(255) NOT NULL,
+  nip_nisn VARCHAR(255) DEFAULT NULL,  -- Optional for karyawan (validated in PHP/Flutter), required for guru
+  password VARCHAR(255) NOT NULL,
+  role ENUM('user','admin','superadmin') DEFAULT 'user',
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE absensi (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  jenis ENUM('Masuk','Pulang','Izin','Pulang Cepat','Penugasan_Masuk','Penugasan_Pulang','Penugasan_Full'),
+  keterangan TEXT,
+  informasi TEXT,  -- For Penugasan details (wajib)
+  dokumen VARCHAR(255),  -- Path to uploaded dokumen (wajib for Penugasan)
+  selfie VARCHAR(255),
+  latitude VARCHAR(100),
+  longitude VARCHAR(100),
+  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+```
 
 
 ```md

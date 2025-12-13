@@ -44,6 +44,15 @@ CREATE TABLE absensi (
 );
 
 
+-- ================== sementara aja
+CREATE TABLE login_tokens (
+    user_id INT PRIMARY KEY,
+    token VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
 
 -- -- tabel untuk presensi user login
 
