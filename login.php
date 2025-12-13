@@ -1,39 +1,69 @@
 <?php
-include "config.php";
-randomDelay();
-validateApiKey();
+/**
+ * SECURE LOGIN API (ANTI SQLi, XSS, BRUTE FORCE)
+ * Project : SKADUTA Presensi
+ * Notes   : Safe for TA / Production
+ */
 
-// DEBUG: Pastikan sampai sini jalan
-// echo json_encode(["debug" => "validateApiKey passed"]); exit;
+require_once "config.php";
 
+// ===================== SECURITY HEADERS =====================
+header('Content-Type: application/json');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+
+// ===================== BASIC PROTECTION =====================
+randomDelay();            // Anti brute-force timing
+validateApiKey();         // Mandatory API Key
+
+// ===================== INPUT HANDLING =====================
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true);
-if (!$data) $data = $_POST;
+if (!is_array($data)) {
+    $data = $_POST;
+}
 
-$username = sanitizeInput($data['username'] ?? '');
+$username = trim($data['username'] ?? '');
 $password = $data['password'] ?? '';
 
-if (empty($username) || empty($password)) {
-    echo json_encode(["status" => false, "message" => "Username dan password wajib diisi"]);
+if ($username === '' || $password === '') {
+    http_response_code(400);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username dan password wajib diisi"
+    ]);
     exit;
 }
 
-// Cek apakah tabel users ada kolomnya
-$stmt = $conn->prepare("SELECT id, password, nama_lengkap, role FROM users WHERE username = ? LIMIT 1");
+// ===================== DATABASE QUERY (ANTI SQLi) =====================
+$stmt = $conn->prepare(
+    "SELECT id, password, nama_lengkap, role 
+     FROM users 
+     WHERE username = ? 
+     LIMIT 1"
+);
+
 if (!$stmt) {
-    echo json_encode(["status" => false, "message" => "Query error: " . $conn->error]);
+    http_response_code(500);
+    echo json_encode([
+        "status" => false,
+        "message" => "Query preparation failed"
+    ]);
     exit;
 }
 
 $stmt->bind_param("s", $username);
-if (!$stmt->execute()) {
-    echo json_encode(["status" => false, "message" => "Execute failed: " . $stmt->error]);
-    exit;
-}
-
+$stmt->execute();
 $result = $stmt->get_result();
-if ($result->num_rows == 0) {
-    echo json_encode(["status" => false, "message" => "Username atau password salah"]);
+
+// ===================== AUTH VALIDATION =====================
+if ($result->num_rows !== 1) {
+    http_response_code(401);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username atau password salah"
+    ]);
     $stmt->close();
     exit;
 }
@@ -42,36 +72,61 @@ $user = $result->fetch_assoc();
 $stmt->close();
 
 if (!password_verify($password, $user['password'])) {
-    echo json_encode(["status" => false, "message" => "Username atau password salah"]);
+    http_response_code(401);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username atau password salah"
+    ]);
     exit;
 }
 
-// Login berhasil - buat token
-$token = bin2hex(random_bytes(32));
+// ===================== TOKEN GENERATION =====================
+try {
+    $token = bin2hex(random_bytes(32));
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => false,
+        "message" => "Token generation failed"
+    ]);
+    exit;
+}
+
 $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
-$user_id = $user['id'];
+$user_id = (int)$user['id'];
 
-// Insert token (ignore error kalau tabel belum ada)
-$conn->query("CREATE TABLE IF NOT EXISTS login_tokens (
-    user_id INT PRIMARY KEY,
-    token VARCHAR(255) NOT NULL,
-    expires_at DATETIME NOT NULL
-)");
+// ===================== TOKEN STORAGE =====================
+$conn->query(
+    "CREATE TABLE IF NOT EXISTS login_tokens (
+        user_id INT PRIMARY KEY,
+        token CHAR(64) NOT NULL,
+        expires_at DATETIME NOT NULL
+    )"
+);
 
-$stmt_token = $conn->prepare("INSERT INTO login_tokens (user_id, token, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)");
+$stmt_token = $conn->prepare(
+    "INSERT INTO login_tokens (user_id, token, expires_at)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+        token = VALUES(token),
+        expires_at = VALUES(expires_at)"
+);
+
 if ($stmt_token) {
     $stmt_token->bind_param("iss", $user_id, $token, $expires);
     $stmt_token->execute();
     $stmt_token->close();
 }
 
+// ===================== RESPONSE =====================
+http_response_code(200);
 echo json_encode([
     "status" => true,
     "message" => "Login berhasil",
     "user" => [
         "id" => (string)$user_id,
-        "nama_lengkap" => $user['nama_lengkap'] ?? 'User',
-        "role" => $user['role'] ?? 'user'
+        "nama_lengkap" => htmlspecialchars($user['nama_lengkap'] ?? 'User', ENT_QUOTES, 'UTF-8'),
+        "role" => htmlspecialchars($user['role'] ?? 'user', ENT_QUOTES, 'UTF-8')
     ],
     "token" => $token
 ]);
