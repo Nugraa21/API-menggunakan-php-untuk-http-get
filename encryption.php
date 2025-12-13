@@ -1,4 +1,6 @@
 <?php
+include "proteksi.php";
+
 // encryption.php — VERSI 1000% JALAN!
 class Encryption {
     private static $key = "SkadutaPresensi2025SecureKey1234"; // 32 karakter

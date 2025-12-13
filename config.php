@@ -1,4 +1,5 @@
 <?php
+include "proteksi.php";
 // Matikan semua error HTML agar tidak muncul <br /> atau warning
 error_reporting(0);
 ini_set('display_errors', 0);
