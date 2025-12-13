@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 # ===================== CONFIG =====================
-BASE_URL = "https://nonlitigious-alene-uninfinitely.ngrok-free.dev/backendapk/"
+BASE_URL = "https://nonlitigious-alene-uninfinitely.ngrok-free.dev/"
 API_KEY = "Skaduta2025!@#SecureAPIKey1234567890"
 TIMEOUT = 10
 

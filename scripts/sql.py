@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 
 # ===================== CONFIG =====================
-BASE_URL = "https://nonlitigious-alene-uninfinitely.ngrok-free.dev/backendapk/"
+BASE_URL = "https://nonlitigious-alene-uninfinitely.ngrok-free.dev/"
 LOGIN_ENDPOINT = "login.php"
 TIMEOUT = 10
 
