@@ -1,0 +1,3 @@
+ErrorDocument 404 /backendapk/error/404.php
+ErrorDocument 403 /backendapk/error/403.php
+ErrorDocument 500 /backendapk/error/500.php
