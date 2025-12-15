@@ -82,8 +82,8 @@ if (!password_verify($password, $user['password'])) {
     exit;
 }
 
-// ===================== DEVICE BINDING CHECK (HANYA UNTUK ROLE 'user') =====================
-if ($user['role'] === 'user' && $user['device_id'] !== null && $user['device_id'] !== $device_id) {
+// ===================== DEVICE BINDING CHECK (HANYA UNTUK ROLE 'user' DAN JIKA DEVICE_ID DIKIRIM) =====================
+if ($user['role'] === 'user' && $device_id !== '' && $user['device_id'] !== null && $user['device_id'] !== $device_id) {
     http_response_code(401);
     echo json_encode([
         "status" => false,

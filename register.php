@@ -35,25 +35,26 @@ if (!$is_karyawan && empty($nip_nisn)) {
     exit;
 }
 
-// ===================== DEVICE BINDING UNTUK ROLE 'user' SAJA =====================
+// ===================== DEVICE BINDING UNTUK ROLE 'user' SAJA DAN JIKA DEVICE_ID DIKIRIM =====================
 $final_device_id = null;
 if ($role === 'user') {
-    if (empty($device_id)) {
-        echo json_encode(["status" => "error", "message" => "ID perangkat wajib untuk user biasa"]);
-        exit;
-    }
-    // Check if device_id already registered for another user
-    $check_device = $conn->prepare("SELECT id FROM users WHERE device_id = ?");
-    $check_device->bind_param("s", $device_id);
-    $check_device->execute();
-    $check_device->store_result();
-    if ($check_device->num_rows > 0) {
-        echo json_encode(["status" => "error", "message" => "Perangkat ini sudah terdaftar dengan akun lain. 1 perangkat hanya untuk 1 user."]);
+    if ($device_id === '') {
+        // Skip untuk Windows desktop, set null
+        $final_device_id = null;
+    } else {
+        // Check if device_id already registered for another user
+        $check_device = $conn->prepare("SELECT id FROM users WHERE device_id = ?");
+        $check_device->bind_param("s", $device_id);
+        $check_device->execute();
+        $check_device->store_result();
+        if ($check_device->num_rows > 0) {
+            echo json_encode(["status" => "error", "message" => "Perangkat ini sudah terdaftar dengan akun lain. 1 perangkat hanya untuk 1 user."]);
+            $check_device->close();
+            exit;
+        }
         $check_device->close();
-        exit;
+        $final_device_id = $device_id;
     }
-    $check_device->close();
-    $final_device_id = $device_id;
 } else {
     // Untuk admin/superadmin, abaikan device_id dan set ke NULL
     $final_device_id = null;
@@ -77,7 +78,11 @@ $stmt = $conn->prepare("INSERT INTO users (username, nama_lengkap, nip_nisn, pas
 $stmt->bind_param("ssssss", $username, $nama, $nip_nisn, $password, $role, $final_device_id);
 
 if ($stmt->execute()) {
-    echo json_encode(["status" => "success", "message" => "Akun berhasil dibuat" . ($role === 'user' ? " dan terikat ke perangkat ini" : "")]);
+    $msg = "Akun berhasil dibuat";
+    if ($role === 'user' && $device_id !== '') {
+        $msg .= " dan terikat ke perangkat ini";
+    }
+    echo json_encode(["status" => "success", "message" => $msg]);
 } else {
     echo json_encode(["status" => "error", "message" => "Gagal mendaftar"]);
 }
