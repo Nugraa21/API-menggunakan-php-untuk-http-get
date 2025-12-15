@@ -27,6 +27,7 @@ if (!is_array($data)) {
 
 $username = trim($data['username'] ?? '');
 $password = $data['password'] ?? '';
+$device_id = trim($data['device_id'] ?? '');
 
 if ($username === '' || $password === '') {
     http_response_code(400);
@@ -39,7 +40,7 @@ if ($username === '' || $password === '') {
 
 // ===================== DATABASE QUERY (ANTI SQLi) =====================
 $stmt = $conn->prepare(
-    "SELECT id, password, nama_lengkap, role 
+    "SELECT id, username, password, nama_lengkap, role, device_id 
      FROM users 
      WHERE username = ? 
      LIMIT 1"
@@ -77,6 +78,16 @@ if (!password_verify($password, $user['password'])) {
     echo json_encode([
         "status" => false,
         "message" => "Username atau password salah"
+    ]);
+    exit;
+}
+
+// ===================== DEVICE BINDING CHECK (HANYA UNTUK ROLE 'user') =====================
+if ($user['role'] === 'user' && $user['device_id'] !== null && $user['device_id'] !== $device_id) {
+    http_response_code(401);
+    echo json_encode([
+        "status" => false,
+        "message" => "Perangkat tidak diizinkan untuk akun ini. Gunakan perangkat yang sama saat registrasi."
     ]);
     exit;
 }
@@ -126,6 +137,7 @@ echo json_encode([
     "message" => "Login berhasil",
     "user" => [
         "id" => (string)$user_id,
+        "username" => htmlspecialchars($user['username'] ?? '', ENT_QUOTES, 'UTF-8'),
         "nama_lengkap" => htmlspecialchars($user['nama_lengkap'] ?? 'User', ENT_QUOTES, 'UTF-8'),
         "role" => htmlspecialchars($user['role'] ?? 'user', ENT_QUOTES, 'UTF-8')
     ],

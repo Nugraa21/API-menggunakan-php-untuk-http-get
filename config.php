@@ -17,7 +17,7 @@ ini_set('max_execution_time', 10);
 $host = "localhost";
 $user = "root";
 $pass = "081328nugra";
-$db   = "database_smk_4";
+$db   = "database_smk_3";
 
 $conn = mysqli_connect($host, $user, $pass, $db);
 
