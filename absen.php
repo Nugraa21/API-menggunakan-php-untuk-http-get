@@ -5,7 +5,7 @@ validateApiKey();
 
 $sekolah_lat = -7.7771639173358516;
 $sekolah_lng = 110.36716347232226;
-$max_distance = 200;
+$max_distance = 120;
 
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     $earth_radius = 6371000;
