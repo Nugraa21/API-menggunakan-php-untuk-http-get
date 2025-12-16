@@ -82,14 +82,29 @@ if (!password_verify($password, $user['password'])) {
     exit;
 }
 
-// ===================== DEVICE BINDING CHECK (HANYA UNTUK ROLE 'user' DAN JIKA DEVICE_ID DIKIRIM) =====================
-if ($user['role'] === 'user' && $device_id !== '' && $user['device_id'] !== null && $user['device_id'] !== $device_id) {
-    http_response_code(401);
-    echo json_encode([
-        "status" => false,
-        "message" => "Perangkat tidak diizinkan untuk akun ini. Gunakan perangkat yang sama saat registrasi."
-    ]);
-    exit;
+// ===================== DEVICE BINDING CHECK & BIND (HANYA UNTUK ROLE 'user') =====================
+// Cek kalau role user dan device_id dikirim
+if ($user['role'] === 'user' && $device_id !== '') {
+    // Kalau udah ada device_id di DB tapi gak match
+    if ($user['device_id'] !== null && $user['device_id'] !== '' && $user['device_id'] !== $device_id) {
+        http_response_code(403);  // Ganti ke 403 biar beda dari 401 (auth failure)
+        echo json_encode([
+            "status" => false,
+            "message" => "Device ID tidak valid. Akun ini terikat ke perangkat lain. Hubungi admin untuk unbind."
+        ], JSON_PRETTY_PRINT);
+        exit;
+    }
+    
+    // Kalau device OK atau belum ada (kosong), bind otomatis
+    if ($user['device_id'] === null || $user['device_id'] === '') {
+        $update_stmt = $conn->prepare("UPDATE users SET device_id = ? WHERE id = ?");
+        if ($update_stmt) {
+            $update_stmt->bind_param("si", $device_id, (int)$user['id']);
+            $update_stmt->execute();
+            $update_stmt->close();
+            error_log("Device bound: User ID {$user['id']} to device $device_id");  // Log buat debug
+        }
+    }
 }
 
 // ===================== TOKEN GENERATION =====================
