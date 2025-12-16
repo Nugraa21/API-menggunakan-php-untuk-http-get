@@ -98,7 +98,7 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
     }
 }
 
-$status = in_array($jenis, ['Masuk', 'Pulang']) ? 'Disetujui' : 'Pending';
+$status = in_array($jenis, ['Masuk', 'Pulang']) ? 'Disetujui' : 'Waiting';
 
 // Upload selfie & dokumen (sama seperti sebelumnya, tapi lebih aman)
 $selfie_name = '';

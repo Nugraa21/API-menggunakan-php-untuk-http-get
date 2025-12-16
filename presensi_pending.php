@@ -10,7 +10,7 @@ header('Content-Type: application/json');
 $sql = "SELECT p.*, u.nama_lengkap
         FROM absensi p
         JOIN users u ON p.user_id = u.id
-        WHERE p.status='Pending'";
+        WHERE p.status='Waiting'";
 
 $result = $conn->query($sql);
 $data = [];
