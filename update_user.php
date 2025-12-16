@@ -1,11 +1,10 @@
 <?php
 // update_user.php
 include "config.php";
-
 header('Content-Type: application/json');
 ini_set('display_errors', 0);
 
-// Baca JSON dari Flutter
+// Baca input (support POST dan JSON body)
 $input = json_decode(file_get_contents('php://input'), true);
 $_POST = array_merge($_POST, $input ?? []);
 
@@ -15,6 +14,7 @@ $nama_lengkap = $_POST["nama_lengkap"] ?? null;
 $nip_nisn = $_POST["nip_nisn"] ?? null;
 $password = $_POST["password"] ?? null;
 $role = $_POST["role"] ?? null;
+$status = $_POST["status"] ?? null;  // <--- BARU
 
 if (empty($id)) {
     echo json_encode(["status" => "error", "message" => "ID user wajib diisi"]);
@@ -30,7 +30,7 @@ if (mysqli_num_rows($check) == 0) {
 
 $updates = [];
 
-// Username (cek duplikat kecuali diri sendiri)
+// Username
 if ($username !== null && trim($username) !== '') {
     $esc_username = mysqli_real_escape_string($conn, trim($username));
     $dup_check = mysqli_query($conn, "SELECT id FROM users WHERE username = '$esc_username' AND id != '$id'");
@@ -46,7 +46,7 @@ if ($nama_lengkap !== null && trim($nama_lengkap) !== '') {
     $updates[] = "nama_lengkap = '" . mysqli_real_escape_string($conn, trim($nama_lengkap)) . "'";
 }
 
-// NIP/NISN (boleh kosong)
+// NIP/NISN
 if ($nip_nisn !== null) {
     $updates[] = "nip_nisn = '" . mysqli_real_escape_string($conn, trim($nip_nisn ?? '')) . "'";
 }
@@ -60,6 +60,11 @@ if ($password !== null && trim($password) !== '') {
 // Role
 if ($role !== null && in_array($role, ['user', 'admin', 'superadmin'])) {
     $updates[] = "role = '" . mysqli_real_escape_string($conn, $role) . "'";
+}
+
+// Status (baru)
+if ($status !== null && in_array($status, ['Karyawan', 'Guru', 'Staff Lain'])) {
+    $updates[] = "status = '" . mysqli_real_escape_string($conn, $status) . "'";
 }
 
 if (empty($updates)) {
