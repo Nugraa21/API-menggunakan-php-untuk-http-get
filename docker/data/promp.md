@@ -281,7 +281,7 @@ CREATE TABLE absensi (
   selfie VARCHAR(255),  -- Path to selfie photo (opsional, untuk verifikasi)
   latitude DECIMAL(10, 8),  -- Latitude lokasi (presisi lebih baik daripada VARCHAR)
   longitude DECIMAL(11, 8), -- Longitude lokasi (presisi lebih baik daripada VARCHAR)
-  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
+  status ENUM('waiting','Disetujui','Ditolak') DEFAULT 'waiting',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_user_date (user_id, tanggal),  -- Index untuk rekap cepat per user dan tanggal/bulan
@@ -301,6 +301,7 @@ CREATE TABLE login_tokens (
 
 ## Catatan perbaruan 
 - untuk informasi user ada (username,nama langkap,nip/mik (karyawan tidak perlu ini),guru/karyawa,password,device id)
+- btw users bisa login dengan nik-nip dan username
 - untuk username sama password itu defauld jadi menu register di hapus jadi username sama password itu admin yang memasukan 
 - untuk device id otomatis masuk saat user login dengan username password awal jadi awal login di hp langsung device id nya keditek gitu masukin ke database    
 
@@ -1721,3 +1722,5 @@ class _RegisterPageState extends State<RegisterPage>
 aku buth bantuan kamu unu code sql nya jangan di ubah biar seperti itu aja kamu bisa edit agar saat user awal login langsung detek id device jadi nanti pas awal login liat di atabase untuk users ini udag ada id device g kalau belum masukin id device nya untuk awal login kalau sudah ada berarti g bisa soalnya 1 akun buat 1 device jadi g bisa login di device lain 
 
 kamu bisa langsung ketikan semua codenya untuk php saa flutternya semua codenya langsung dan kasih tau ini bagian code yang mana aja 
+
+jadi untuk register hapus aja g usah di pakai 
