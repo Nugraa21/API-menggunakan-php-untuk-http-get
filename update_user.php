@@ -1,5 +1,5 @@
 <?php
-// update_user.php - SEKARANG BISA: Edit User + Tambah User Baru + Reset Device ID
+// update_user.php - Handle: Tambah User Baru + Edit User + Reset Device ID
 include "config.php";
 
 header('Content-Type: application/json');
@@ -8,7 +8,8 @@ $input = json_decode(file_get_contents('php://input'), true);
 $data = array_merge($_POST, $input ?? []);
 
 // Ambil data
-$id           = $data['id'] ?? null; // Kalau null/kosong = mode tambah user baru
+$id           = $data['id'] ?? null;           // null atau kosong = mode tambah user baru
+$user_id      = $data['user_id'] ?? null;      // untuk reset device (alternatif id)
 $username     = trim($data['username'] ?? '');
 $nama_lengkap = trim($data['nama_lengkap'] ?? '');
 $password     = $data['password'] ?? '';
@@ -17,31 +18,37 @@ $role         = $data['role'] ?? 'user';
 $status       = $data['status'] ?? 'Karyawan';
 $reset_device = $data['reset_device'] ?? false;
 
-// Validasi wajib
-if ($id === null || $id === '') {
-    // MODE TAMBAH USER BARU
+// Tentukan ID yang akan dipakai (bisa dari 'id' atau 'user_id' untuk kompatibilitas reset)
+$target_id = $id ?? $user_id;
+
+$response = ["status" => "error", "message" => "Unknown error"];
+
+if ($target_id === null || $target_id === '') {
+    // ================== MODE TAMBAH USER BARU ==================
     if ($username === '' || $nama_lengkap === '' || $password === '') {
-        echo json_encode(["status" => "error", "message" => "Username, nama lengkap, dan password wajib diisi untuk user baru"]);
+        $response = ["status" => "error", "message" => "Username, nama lengkap, dan password wajib diisi"];
+        echo json_encode($response);
         exit;
     }
 
     // Cek username sudah ada
     $check = mysqli_query($conn, "SELECT id FROM users WHERE username = '" . mysqli_real_escape_string($conn, $username) . "'");
     if (mysqli_num_rows($check) > 0) {
-        echo json_encode(["status" => "error", "message" => "Username sudah digunakan"]);
+        $response = ["status" => "error", "message" => "Username sudah digunakan"];
+        echo json_encode($response);
         exit;
     }
 
     // Validasi role & status
     $valid_roles = ['user', 'admin', 'superadmin'];
-    $valid_status = ['Karyawan', 'Guru', 'Staff Lain'];
+    $valid_statuses = ['Karyawan', 'Guru', 'Staff Lain'];
     if (!in_array($role, $valid_roles)) $role = 'user';
-    if (!in_array($status, $valid_status)) $status = 'Karyawan';
+    if (!in_array($status, $valid_statuses)) $status = 'Karyawan';
 
     // Hash password
     $hashed = password_hash($password, PASSWORD_DEFAULT);
 
-    // Insert user baru
+    // Insert
     $sql = "INSERT INTO users 
             (username, nama_lengkap, nip_nisn, password, role, status, device_id) 
             VALUES (
@@ -55,27 +62,33 @@ if ($id === null || $id === '') {
             )";
 
     if (mysqli_query($conn, $sql)) {
-        echo json_encode(["status" => "success", "message" => "User baru berhasil ditambahkan"]);
+        $response = ["status" => "success", "message" => "User baru berhasil ditambahkan"];
     } else {
-        echo json_encode(["status" => "error", "message" => "Gagal tambah user: " . mysqli_error($conn)]);
+        $response = ["status" => "error", "message" => "Gagal tambah user: " . mysqli_error($conn)];
     }
+
 } else {
-    // MODE EDIT USER / RESET DEVICE
+    // ================== MODE EDIT USER ATAU RESET DEVICE ==================
+    $target_id = (int)$target_id; // pastikan integer
+
     // Cek user ada
-    $check = mysqli_query($conn, "SELECT id FROM users WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'");
+    $check = mysqli_query($conn, "SELECT id FROM users WHERE id = $target_id");
     if (mysqli_num_rows($check) == 0) {
-        echo json_encode(["status" => "error", "message" => "User tidak ditemukan"]);
+        $response = ["status" => "error", "message" => "User tidak ditemukan"];
+        echo json_encode($response);
         exit;
     }
 
     $updates = [];
 
-    // Username
+    // Username (hanya jika diisi)
     if ($username !== '') {
         $esc_username = mysqli_real_escape_string($conn, $username);
-        $dup_check = mysqli_query($conn, "SELECT id FROM users WHERE username = '$esc_username' AND id != '$id'");
-        if (mysqli_num_rows($dup_check) > 0) {
-            echo json_encode(["status" => "error", "message" => "Username sudah digunakan"]);
+        // Cek duplikat kecuali dirinya sendiri
+        $dup = mysqli_query($conn, "SELECT id FROM users WHERE username = '$esc_username' AND id != $target_id");
+        if (mysqli_num_rows($dup) > 0) {
+            $response = ["status" => "error", "message" => "Username sudah digunakan oleh user lain"];
+            echo json_encode($response);
             exit;
         }
         $updates[] = "username = '$esc_username'";
@@ -107,24 +120,26 @@ if ($id === null || $id === '') {
         $updates[] = "status = '" . mysqli_real_escape_string($conn, $status) . "'";
     }
 
-    // Reset device_id
-    if ($reset_device === true || $reset_device === 'true') {
+    // Reset Device ID (bisa standalone atau bareng edit)
+    if ($reset_device === true || $reset_device === 'true' || $reset_device === '1') {
         $updates[] = "device_id = NULL";
     }
 
     if (empty($updates)) {
-        echo json_encode(["status" => "success", "message" => "Tidak ada perubahan"]);
-        exit;
-    }
-
-    $sql = "UPDATE users SET " . implode(", ", $updates) . " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
-    if (mysqli_query($conn, $sql)) {
-        $msg = $reset_device ? "User diperbarui dan device direset" : "User berhasil diperbarui";
-        echo json_encode(["status" => "success", "message" => $msg]);
+        $response = ["status" => "success", "message" => "Tidak ada perubahan yang dilakukan"];
     } else {
-        echo json_encode(["status" => "error", "message" => "Gagal update: " . mysqli_error($conn)]);
+        $sql = "UPDATE users SET " . implode(", ", $updates) . " WHERE id = $target_id";
+        if (mysqli_query($conn, $sql)) {
+            $msg = (in_array("device_id = NULL", $updates)) 
+                ? "User diperbarui dan device ID telah direset" 
+                : "User berhasil diperbarui";
+            $response = ["status" => "success", "message" => $msg];
+        } else {
+            $response = ["status" => "error", "message" => "Gagal update: " . mysqli_error($conn)];
+        }
     }
 }
 
+echo json_encode($response);
 mysqli_close($conn);
 ?>
