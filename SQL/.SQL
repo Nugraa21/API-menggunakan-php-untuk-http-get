@@ -80,7 +80,7 @@ CREATE TABLE absensi (
   selfie VARCHAR(255),
   latitude VARCHAR(100),
   longitude VARCHAR(100),
-  status ENUM('Pending','Disetujui','Ditolak') DEFAULT 'Pending',
+  status ENUM('Waiting','Disetujui','Ditolak') DEFAULT 'Waiting',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
