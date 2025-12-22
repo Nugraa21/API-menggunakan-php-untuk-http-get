@@ -1,11 +1,12 @@
 <?php
+// absen.php - DIPERBAIKI SESUAI ATURAN BARU + LEBIH AMAN
 include "config.php";
 randomDelay();
 validateApiKey();
 
 $sekolah_lat = -7.7771639173358516;
 $sekolah_lng = 110.36716347232226;
-$max_distance = 120;
+$max_distance = 120; // meter
 
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     $earth_radius = 6371000;
@@ -37,9 +38,9 @@ if (empty($userId) || empty($jenis)) {
     exit;
 }
 
-// Prepared statements
-$stmt = $conn->prepare("SELECT id FROM users WHERE id = ?");
-$stmt->bind_param("s", $userId);
+// Cek user ada
+$stmt = $conn->prepare("SELECT id, role FROM users WHERE id = ?");
+$stmt->bind_param("i", $userId);
 $stmt->execute();
 $stmt->store_result();
 if ($stmt->num_rows == 0) {
@@ -48,11 +49,12 @@ if ($stmt->num_rows == 0) {
 }
 $stmt->close();
 
-// Validasi khusus
+// Validasi khusus per jenis
 if (in_array($jenis, ['Izin', 'Pulang Cepat']) && empty($keterangan)) {
     echo json_encode(["status" => false, "message" => "Keterangan wajib diisi untuk $jenis!"]);
     exit;
 }
+
 if (strpos($jenis, 'Penugasan') === 0) {
     if (empty($informasi)) {
         echo json_encode(["status" => false, "message" => "Informasi penugasan wajib diisi!"]);
@@ -64,7 +66,7 @@ if (strpos($jenis, 'Penugasan') === 0) {
     }
 }
 
-// Cek jarak hanya untuk Masuk & Pulang
+// Cek jarak & jam hanya untuk Masuk & Pulang
 if (in_array($jenis, ['Masuk', 'Pulang'])) {
     if ($lat == 0 || $lng == 0) {
         echo json_encode(["status" => false, "message" => "Lokasi tidak terdeteksi!"]);
@@ -79,7 +81,7 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
     // Cek absen ganda hari ini
     $today = date('Y-m-d');
     $stmt = $conn->prepare("SELECT jenis FROM absensi WHERE user_id = ? AND DATE(created_at) = ? AND jenis IN ('Masuk', 'Pulang')");
-    $stmt->bind_param("ss", $userId, $today);
+    $stmt->bind_param("is", $userId, $today);
     $stmt->execute();
     $result = $stmt->get_result();
     $absen_hari_ini = [];
@@ -96,11 +98,33 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         echo json_encode(["status" => false, "message" => "Kamu sudah absen Pulang hari ini!"]);
         exit;
     }
+
+    // Validasi jam masuk & pulang
+    $currentHour = (int)date('H');
+    $currentMinute = (int)date('i');
+    $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
+
+    if ($jenis == 'Masuk') {
+        // Maksimal telat jam 09:00 = 540 menit
+        if ($currentTimeInMinutes > 540) {
+            echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
+            exit;
+        }
+    }
+
+    if ($jenis == 'Pulang') {
+        // Minimal jam 01:00 = 780 menit (13:00)
+        if ($currentTimeInMinutes < 780) {
+            echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
+            exit;
+        }
+    }
 }
 
+// Status otomatis disetujui untuk Masuk & Pulang, lainnya waiting
 $status = in_array($jenis, ['Masuk', 'Pulang']) ? 'Disetujui' : 'Waiting';
 
-// Upload selfie & dokumen (sama seperti sebelumnya, tapi lebih aman)
+// Upload selfie & dokumen
 $selfie_name = '';
 if (!empty($selfie64)) {
     $selfie_dir = "selfie/";
@@ -108,41 +132,50 @@ if (!empty($selfie64)) {
     $selfie_name = "selfie_" . $userId . "_" . time() . ".jpg";
     $selfie_path = $selfie_dir . $selfie_name;
     $decoded = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $selfie64));
-    if ($decoded) file_put_contents($selfie_path, $decoded);
+    if ($decoded && file_put_contents($selfie_path, $decoded) === false) {
+        echo json_encode(["status" => false, "message" => "Gagal simpan selfie"]);
+        exit;
+    }
 }
 
 $dokumen_name = '';
 if (!empty($dokumen64)) {
     $dokumen_dir = "dokumen/";
     if (!is_dir($dokumen_dir)) mkdir($dokumen_dir, 0777, true);
-    $ext = strpos($dokumen64, 'data:image') === 0 ? 'jpg' : 'pdf';
-    $dokumen_name = "dokumen_" . $userId . "_" . time() . "." . $ext;
+    $prefix = strpos($dokumen64, 'data:image') === 0 ? 'jpg' : 'pdf';
+    $dokumen_name = "dokumen_" . $userId . "_" . time() . "." . $prefix;
     $dokumen_path = $dokumen_dir . $dokumen_name;
     $decoded = base64_decode(preg_replace('#^data:\w+/\w+;base64,#i', '', $dokumen64));
-    if (!$decoded || !file_put_contents($dokumen_path, $decoded)) {
-        echo json_encode(["status" => false, "message" => "Gagal upload dokumen!"]);
+    if ($decoded && file_put_contents($dokumen_path, $decoded) === false) {
+        echo json_encode(["status" => false, "message" => "Gagal simpan dokumen"]);
         exit;
     }
 }
 
-// Insert dengan prepared statement
-$stmt = $conn->prepare("INSERT INTO absensi (user_id, jenis, keterangan, informasi, dokumen, selfie, latitude, longitude, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-$stmt->bind_param("ssssssdss", $userId, $jenis, $keterangan, $informasi, $dokumen_name, $selfie_name, $lat, $lng, $status);
+// Insert presensi
+$stmt = $conn->prepare("INSERT INTO absensi 
+    (user_id, jenis, keterangan, informasi, dokumen, selfie, latitude, longitude, status) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("isssssdss", $userId, $jenis, $keterangan, $informasi, $dokumen_name, $selfie_name, $lat, $lng, $status);
 
 if ($stmt->execute()) {
-    $id = $stmt->insert_id;
-    $jarak_str = (in_array($jenis, ['Masuk', 'Pulang'])) ? round(calculateDistance($sekolah_lat, $sekolah_lng, $lat, $lng), 1) . "m" : null;
+    $jarak_str = in_array($jenis, ['Masuk', 'Pulang']) ? round(calculateDistance($sekolah_lat, $sekolah_lng, $lat, $lng), 1) . "m" : null;
     echo json_encode([
         "status" => true,
         "message" => "Presensi $jenis berhasil!",
-        "data" => ["id" => $id, "jenis" => $jenis, "status" => $status, "jarak" => $jarak_str]
+        "data" => [
+            "jenis" => $jenis,
+            "status" => $status,
+            "jarak" => $jarak_str
+        ]
     ]);
 } else {
-    // Hapus file jika gagal
+    // Hapus file jika gagal insert
     if ($selfie_name && file_exists("selfie/$selfie_name")) unlink("selfie/$selfie_name");
     if ($dokumen_name && file_exists("dokumen/$dokumen_name")) unlink("dokumen/$dokumen_name");
-    echo json_encode(["status" => false, "message" => "Gagal simpan: " . $stmt->error]);
+    echo json_encode(["status" => false, "message" => "Gagal simpan presensi: " . $stmt->error]);
 }
+
 $stmt->close();
 $conn->close();
 ?>
