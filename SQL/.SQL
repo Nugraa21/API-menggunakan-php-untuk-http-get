@@ -114,3 +114,6 @@ CREATE TABLE login_tokens (
 -- );
 
 -- tabel untuk absensi dengan fitur selfie dan lokasi
+CREATE USER 'presensi_user'@'localhost' IDENTIFIED BY '081328nugra#';
+
+GRANT ALL PRIVILEGES ON database_smk_2.* TO 'presensi_user'@'localhost';
