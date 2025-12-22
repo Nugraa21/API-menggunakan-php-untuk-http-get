@@ -1,5 +1,7 @@
 <?php
-// absen.php - DIPERBAIKI SESUAI ATURAN BARU + LEBIH AMAN
+// absen.php - DIPERBAIKI SESUAI ATURAN BARU + LEBIH AMAN + TIMEZONE JOGJA
+date_default_timezone_set('Asia/Jakarta'); // Set timezone ke Asia/Jakarta (Jogja)
+
 include "config.php";
 randomDelay();
 validateApiKey();
@@ -99,7 +101,7 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         exit;
     }
 
-    // Validasi jam masuk & pulang
+    // Validasi jam masuk & pulang (menggunakan waktu server Asia/Jakarta)
     $currentHour = (int)date('H');
     $currentMinute = (int)date('i');
     $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
@@ -113,7 +115,7 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
     }
 
     if ($jenis == 'Pulang') {
-        // Minimal jam 01:00 = 780 menit (13:00)
+        // Minimal jam 13:00 = 780 menit (13:00)
         if ($currentTimeInMinutes < 780) {
             echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
             exit;
