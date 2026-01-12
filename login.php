@@ -1,47 +1,59 @@
 <?php
 /**
- * LOGIN API - VERSI MINIMAL (UNTUK DEBUG ERROR 500)
- * Nonaktifkan randomDelay & validateApiKey sementara
+ * LOGIN API - SUPPORT USERNAME ATAU NIP/NISN
+ * Versi stabil - Januari 2026
  */
 
-require_once "config.php";  // Pastikan config.php koneksi DB benar
+require_once "config.php";  // pastikan file ini ada & koneksi DB benar
 
-// ===================== SECURITY HEADERS =====================
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');     // sesuaikan di produksi
+header('Access-Control-Allow-Methods: POST');
+header('Access-Control-Allow-Headers: Content-Type');
 
 // ===================== INPUT HANDLING =====================
 $raw = file_get_contents('php://input');
-$data = json_decode($raw, true);
-if (!is_array($data)) {
-    $data = $_POST;
-}
+$data = json_decode($raw, true) ?? $_POST;
 
-$username = trim($data['username'] ?? '');
-$password = $data['password'] ?? '';
-$device_id = trim($data['device_id'] ?? '');
+$login_input = trim($data['username'] ?? ''); // key tetap 'username' agar Flutter tidak perlu diubah banyak
+$password    = $data['password']    ?? '';
+$device_id   = trim($data['device_id'] ?? '');
 
-if ($username === '' || $password === '') {
+if ($login_input === '' || $password === '') {
     http_response_code(400);
-    echo json_encode(["status" => false, "message" => "Username dan password wajib diisi"]);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username / NIP / NISN dan password wajib diisi"
+    ]);
     exit;
 }
 
 // ===================== QUERY USER =====================
-$stmt = $conn->prepare("SELECT id, username, password, nama_lengkap, role, device_id FROM users WHERE username = ? LIMIT 1");
+$stmt = $conn->prepare("
+    SELECT 
+        id, username, nip_nisn, password, nama_lengkap, role, device_id 
+    FROM users 
+    WHERE (username = ? OR nip_nisn = ?) 
+    LIMIT 1
+");
+
 if (!$stmt) {
     error_log("Prepare failed: " . $conn->error);
     http_response_code(500);
-    echo json_encode(["status" => false, "message" => "Server error (prepare)"]);
+    echo json_encode(["status" => false, "message" => "Terjadi kesalahan server (database)"]);
     exit;
 }
 
-$stmt->bind_param("s", $username);
+$stmt->bind_param("ss", $login_input, $login_input);
 $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows !== 1) {
     http_response_code(401);
-    echo json_encode(["status" => false, "message" => "Username atau password salah"]);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username/NIP/NISN atau password salah"
+    ]);
     $stmt->close();
     exit;
 }
@@ -49,21 +61,29 @@ if ($result->num_rows !== 1) {
 $user = $result->fetch_assoc();
 $stmt->close();
 
-// ===================== VERIFY PASSWORD =====================
+// ===================== VERIFIKASI PASSWORD =====================
 if (!password_verify($password, $user['password'])) {
     http_response_code(401);
-    echo json_encode(["status" => false, "message" => "Username atau password salah"]);
+    echo json_encode([
+        "status" => false,
+        "message" => "Username/NIP/NISN atau password salah"
+    ]);
     exit;
 }
 
-// ===================== DEVICE BINDING (HANYA USER) =====================
+// ===================== DEVICE BINDING (khusus role user) =====================
 if ($user['role'] === 'user' && $device_id !== '') {
+    // Sudah terikat di device lain?
     if ($user['device_id'] !== null && $user['device_id'] !== '' && $user['device_id'] !== $device_id) {
         http_response_code(403);
-        echo json_encode(["status" => false, "message" => "Akun terikat perangkat lain. Hubungi admin."]);
+        echo json_encode([
+            "status" => false,
+            "message" => "Akun ini sudah terdaftar di perangkat lain. Hubungi admin."
+        ]);
         exit;
     }
 
+    // Belum terikat → bind device sekarang
     if ($user['device_id'] === null || $user['device_id'] === '') {
         $update = $conn->prepare("UPDATE users SET device_id = ? WHERE id = ?");
         if ($update) {
@@ -74,7 +94,7 @@ if ($user['role'] === 'user' && $device_id !== '') {
     }
 }
 
-// ===================== GENERATE TOKEN =====================
+// ===================== GENERATE SIMPLE TOKEN =====================
 $token = bin2hex(random_bytes(32));
 
 // ===================== RESPONSE SUKSES =====================
@@ -83,10 +103,11 @@ echo json_encode([
     "status" => true,
     "message" => "Login berhasil",
     "user" => [
-        "id" => (string)$user['id'],
-        "username" => $user['username'],
-        "nama_lengkap" => $user['nama_lengkap'],
-        "role" => $user['role']
+        "id"            => (string)$user['id'],
+        "username"      => $user['username'],
+        "nip_nisn"      => $user['nip_nisn'] ?? '',
+        "nama_lengkap"  => $user['nama_lengkap'],
+        "role"          => $user['role']
     ],
     "token" => $token
 ]);
