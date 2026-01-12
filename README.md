@@ -104,3 +104,98 @@ CREATE TABLE login_tokens (
 ## Lisensi
 Project ini untuk keperluan internal sekolah. Tidak untuk komersial tanpa izin.
 
+
+<!-- Catatan -->
+
+# Catatan penting untuk Linux
+
+> Digunakan untuk menyiapkan folder upload **dokumen** dan **selfie** di server Linux (Apache/Nginx)
+> Pastikan dijalankan sebagai **root**
+
+---
+
+## 1️⃣ Masuk ke direktori web
+
+```bash
+cd /var/www
+```
+
+---
+
+## 2️⃣ (Opsional) Hapus folder lama jika ada
+
+```bash
+rm -rf /var/www/dokumen
+rm -rf /var/www/selfie
+```
+
+---
+
+## 3️⃣ Buat ulang folder upload
+
+```bash
+mkdir -p /var/www/dokumen /var/www/selfie
+```
+
+---
+
+## 4️⃣ Set owner ke web server
+
+```bash
+chown -R www-data:www-data /var/www/dokumen
+chown -R www-data:www-data /var/www/selfie
+```
+
+---
+
+## 5️⃣ Set permission aman (read & write)
+
+```bash
+chmod -R 775 /var/www/dokumen
+chmod -R 775 /var/www/selfie
+```
+
+---
+
+## 6️⃣ Set sticky group (file upload ikut www-data)
+
+```bash
+chmod g+s /var/www/dokumen
+chmod g+s /var/www/selfie
+```
+
+---
+
+## 7️⃣ Verifikasi permission
+
+```bash
+ls -ld /var/www/dokumen /var/www/selfie
+```
+
+**Output yang benar:**
+
+```
+drwxrwsr-x www-data www-data dokumen
+drwxrwsr-x www-data www-data selfie
+```
+
+---
+
+## 8️⃣ Test write access (wajib)
+
+```bash
+touch /var/www/dokumen/test.txt
+touch /var/www/selfie/test.txt
+```
+
+Jika tidak error → folder **siap digunakan untuk upload** ✅
+
+---
+
+## ⚠️ Catatan Keamanan
+
+* ❌ Jangan gunakan `chmod 777`
+* ✅ Gunakan `775 + www-data`
+* ✅ Nama folder harus sama dengan path di PHP (`selfie`, bukan `selfe`)
+
+---
