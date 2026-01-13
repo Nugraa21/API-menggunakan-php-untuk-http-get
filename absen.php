@@ -1,10 +1,15 @@
 <?php
-// absen.php - DIPERBAIKI SESUAI ATURAN BARU + LEBIH AMAN + TIMEZONE JOGJA
-date_default_timezone_set('Asia/Jakarta'); // Set timezone ke Asia/Jakarta (Jogja)
+// absen.php - DIPERBAIKI: WAKTU TERCATAT BENAR DI WIB (JOGJA)
+
+date_default_timezone_set('Asia/Jakarta'); // Untuk fungsi date() di PHP
 
 include "config.php";
 randomDelay();
 validateApiKey();
+
+// === TAMBAHAN PENTING: Paksa MySQL pakai timezone WIB (+07:00) untuk request ini ===
+$conn->query("SET time_zone = '+07:00'");
+// ===============================================================================
 
 $sekolah_lat = -7.7771639173358516;
 $sekolah_lng = 110.36716347232226;
@@ -101,29 +106,27 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         exit;
     }
 
-    // Validasi jam masuk & pulang (menggunakan waktu server Asia/Jakarta)
+    // Validasi jam masuk & pulang (menggunakan waktu PHP yang sudah WIB)
     $currentHour = (int)date('H');
     $currentMinute = (int)date('i');
     $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
 
     if ($jenis == 'Masuk') {
-        // Maksimal telat jam 09:00 = 540 menit
-        if ($currentTimeInMinutes > 540) {
+        if ($currentTimeInMinutes > 540) { // setelah 09:00
             echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
             exit;
         }
     }
 
     if ($jenis == 'Pulang') {
-        // Minimal jam 13:00 = 780 menit (13:00)
-        if ($currentTimeInMinutes < 780) {
+        if ($currentTimeInMinutes < 780) { // sebelum 13:00
             echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
             exit;
         }
     }
 }
 
-// Status otomatis disetujui untuk Masuk & Pulang, lainnya waiting
+// Status otomatis disetujui untuk Masuk & Pulang
 $status = in_array($jenis, ['Masuk', 'Pulang']) ? 'Disetujui' : 'Waiting';
 
 // Upload selfie & dokumen
@@ -134,7 +137,7 @@ if (!empty($selfie64)) {
     $selfie_name = "selfie_" . $userId . "_" . time() . ".jpg";
     $selfie_path = $selfie_dir . $selfie_name;
     $decoded = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $selfie64));
-    if ($decoded && file_put_contents($selfie_path, $decoded) === false) {
+    if ($decoded === false || file_put_contents($selfie_path, $decoded) === false) {
         echo json_encode(["status" => false, "message" => "Gagal simpan selfie"]);
         exit;
     }
@@ -148,13 +151,13 @@ if (!empty($dokumen64)) {
     $dokumen_name = "dokumen_" . $userId . "_" . time() . "." . $prefix;
     $dokumen_path = $dokumen_dir . $dokumen_name;
     $decoded = base64_decode(preg_replace('#^data:\w+/\w+;base64,#i', '', $dokumen64));
-    if ($decoded && file_put_contents($dokumen_path, $decoded) === false) {
+    if ($decoded === false || file_put_contents($dokumen_path, $decoded) === false) {
         echo json_encode(["status" => false, "message" => "Gagal simpan dokumen"]);
         exit;
     }
 }
 
-// Insert presensi
+// Insert presensi (created_at otomatis dari MySQL dengan timezone WIB)
 $stmt = $conn->prepare("INSERT INTO absensi 
     (user_id, jenis, keterangan, informasi, dokumen, selfie, latitude, longitude, status) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
