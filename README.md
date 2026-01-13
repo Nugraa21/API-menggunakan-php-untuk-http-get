@@ -199,3 +199,9 @@ Jika tidak error → folder **siap digunakan untuk upload** ✅
 * ✅ Nama folder harus sama dengan path di PHP (`selfie`, bukan `selfe`)
 
 ---
+
+## Catatan riset devault absensi 
+
+```sql
+ALTER TABLE absensi MODIFY created_at DATETIME NULL;
+```
