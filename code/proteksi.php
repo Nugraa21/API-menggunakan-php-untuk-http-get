@@ -1,48 +1,44 @@
 <?php
-include "proteksi.php";
-// Matikan semua error HTML agar tidak muncul <br /> atau warning
-error_reporting(0);
-ini_set('display_errors', 0);
-ini_set('display_startup_errors', 0);
+// proteksi.php - Lindungi file dari akses langsung
 
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
+// Daftar file API yang BOLEH diakses langsung via URL
+$allowed_direct_access = [
+    'absen_admin_list.php',
+    'absen_approve.php',
+    'absen_history.php',
+    'absen.php',
+    'delete_user.php',
+    // 'encryption.php',        // Jika kamu pakai untuk decrypt di client-side (opsional, bisa dihapus kalau tidak perlu)
+    'get_users.php',
+    'index.php',             // Jika ada halaman utama
+    'license.php',
+    'login.php',
+    'presensi_add.php',
+    'presensi_approve.php',
+    'presensi_pending.php',
+    'presensi_rekap.php',
+    'presensi_user_history.php',
+    'register.php',
+    'update_password.php',
+    'update_user.php',
+    // Tambahkan file API lain yang boleh diakses langsung di sini
+];
 
-// === KEAMANAN ===
-define('API_SECRET_KEY', 'Skaduta2025!@#SecureAPIKey1234567890');
-set_time_limit(10);
-ini_set('max_execution_time', 10);
+// Nama file yang sedang dijalankan
+$current_file = basename($_SERVER['SCRIPT_NAME']);
 
-// Koneksi DB
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "database_smk_01";
-
-$conn = mysqli_connect($host, $user, $pass, $db);
-
-if (!$conn) {
-    header('Content-Type: application/json');
-    http_response_code(500);
-    echo json_encode(["status" => false, "message" => "Database connection failed"]);
-    exit;
-}
-
-function validateApiKey() {
-    $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $key = $headers['X-App-Key'] ?? $_SERVER['HTTP_X_APP_KEY'] ?? '';
-
-    if ($key !== API_SECRET_KEY) {
-        http_response_code(401);
-        header('Content-Type: text/html; charset=UTF-8');
-
-        echo '
-        <!DOCTYPE html>
-        <html lang="id">
+if (!in_array($current_file, $allowed_direct_access)) {
+    // Jika bukan file API yang diizinkan → blokir akses langsung
+    if (isset($_SERVER['REQUEST_METHOD'])) {
+        // Jika diakses via HTTP (browser atau curl)
+        http_response_code(404);
+        header("Content-Type: text/html; charset=UTF-8");
+        echo "<!DOCTYPE html>
+        <html lang='id'>
         <head>
-            <meta charset="UTF-8">
+            <meta charset='UTF-8'>
             <title>API Service</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <style>
                 body {
                     margin: 0;
@@ -90,16 +86,16 @@ function validateApiKey() {
             </style>
         </head>
         <body>
-            <div class="wrapper">
+            <div class='wrapper'>
                 <h1>API Service</h1>
                 <p>
                     Layanan backend ini digunakan untuk komunikasi data aplikasi.
                     Akses langsung melalui browser tidak disarankan.
                 </p>
 
-                <div class="badge">Status: Online</div>
+                <div class='badge'>Status: Online</div>
 
-                <div class="author">
+                <div class='author'>
                     Dikembangkan oleh<br>
                     <strong>Ludang Prasetyo Nugroho</strong>
                 </div>
@@ -109,20 +105,9 @@ function validateApiKey() {
                 </footer>
             </div>
         </body>
-        </html>
-        ';
+        </html>";
         exit;
     }
 }
-
-
-function randomDelay() {
-    $delay = rand(300000, 1000000); // 0.3 – 1 detik
-    usleep($delay);
-}
-
-function sanitizeInput($data) {
-    if (is_array($data)) return array_map('sanitizeInput', $data);
-    return trim(htmlspecialchars(stripslashes($data), ENT_QUOTES, 'UTF-8'));
-}
+// Jika di-include dari file lain → lanjut normal (tidak ada output apa-apa)
 ?>
