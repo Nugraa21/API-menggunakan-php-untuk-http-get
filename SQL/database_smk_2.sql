@@ -138,10 +138,8 @@ INSERT INTO `users` (`id`, `username`, `nama_lengkap`, `nip_nisn`, `password`, `
 -- Buat test lihat keluaran data / backup data users
 
 INSERT INTO `users` (`id`, `username`, `nama_lengkap`, `nip_nisn`, `password`, `role`, `status`, `device_id`) VALUES
--- (1, 'nugra', 'nugra admin', '000000001', '$2y$10$j7J3rcgqir1XR0Xv7LhfHOmInPq2E7mxLwdFafH9eEpfJDhATGS82', 'superadmin', 'Staff Lain', NULL),
 (2, 'ludang', 'ludang prasetyo n', '225510017', '$2y$10$Lji.epDxlhL8yK5JvCvdxOBq76yg4GnE1kVMQh4Bciz6rViApXcAy', 'user', 'Karyawan', 'AP3A.240905.015.A2'),
 (5, 'rohmat', 'Rohmat cahyo', '225510019', '$2y$10$kYBfc/w8l9TbwV8TJZXkFeiselhQ6jAPqpvF8mh7GEvyvoCHPT3Xu', 'user', 'Karyawan', 'UP1A.231005.007'),
--- (6, 'admin', 'admin', '00000002', '$2y$10$fzCGE9og8o9b0Vm7NHYPwOK7CAb2NleP2HwJ7GbynxQ09b9Hy45QC', 'admin', 'Karyawan', NULL),
 (7, 'yoga', 'yoga saputra', '', '$2y$10$wJ3MjdtiifTHfVkuXhRIPu/.4BSE5FPDVpTvusz.wDpBy9f.gsXeu', 'user', 'Karyawan', NULL),
 (8, 'fadrian', 'M fadrian', '', '$2y$10$S1q0984D20yxrcgS/aCRAenHc3YZ04O5sKBdNZEIBcMQmGSXBzhbK', 'user', 'Karyawan', NULL),
 (9, 'rifki', 'M rifki', '225510012', '$2y$10$IJIpr2dMe/QlQCQpiw8VVunXxKrxYJvPcbwRUBBoC8qdEqnVWzA9y', 'user', 'Karyawan', 'AP3A.240617.008'),

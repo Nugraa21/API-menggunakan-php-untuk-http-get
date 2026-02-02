@@ -16,8 +16,8 @@ $raw = file_get_contents('php://input');
 $data = json_decode($raw, true) ?? $_POST;
 
 $login_input = trim($data['username'] ?? ''); // key tetap 'username' agar Flutter tidak perlu diubah banyak
-$password    = $data['password']    ?? '';
-$device_id   = trim($data['device_id'] ?? '');
+$password = $data['password'] ?? '';
+$device_id = trim($data['device_id'] ?? '');
 
 if ($login_input === '' || $password === '') {
     http_response_code(400);
@@ -97,17 +97,35 @@ if ($user['role'] === 'user' && $device_id !== '') {
 // ===================== GENERATE SIMPLE TOKEN =====================
 $token = bin2hex(random_bytes(32));
 
+// ===================== SAVE TOKEN TO DATABASE =====================
+$expires_at = date('Y-m-d H:i:s', strtotime('+7 days')); // Expire 7 hari
+
+// Gunakan ON DUPLICATE KEY UPDATE agar user_id (Primary Key) tidak duplikat
+$stmt_token = $conn->prepare("
+    INSERT INTO login_tokens (user_id, token, expires_at) 
+    VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE 
+        token = VALUES(token), 
+        expires_at = VALUES(expires_at)
+");
+
+if ($stmt_token) {
+    $stmt_token->bind_param("iss", $user['id'], $token, $expires_at);
+    $stmt_token->execute();
+    $stmt_token->close();
+}
+
 // ===================== RESPONSE SUKSES =====================
 http_response_code(200);
 echo json_encode([
     "status" => true,
     "message" => "Login berhasil",
     "user" => [
-        "id"            => (string)$user['id'],
-        "username"      => $user['username'],
-        "nip_nisn"      => $user['nip_nisn'] ?? '',
-        "nama_lengkap"  => $user['nama_lengkap'],
-        "role"          => $user['role']
+        "id" => (string) $user['id'],
+        "username" => $user['username'],
+        "nip_nisn" => $user['nip_nisn'] ?? '',
+        "nama_lengkap" => $user['nama_lengkap'],
+        "role" => $user['role']
     ],
     "token" => $token
 ]);
