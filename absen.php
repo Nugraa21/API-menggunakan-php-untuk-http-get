@@ -13,7 +13,7 @@ $conn->query("SET time_zone = '+07:00'");
 
 $sekolah_lat = -7.7771639173358516;
 $sekolah_lng = 110.36716347232226;
-$max_distance = 120; // meter
+$max_distance = 12000000000000; // meter
 
 function calculateDistance($lat1, $lon1, $lat2, $lon2) {
     $earth_radius = 6371000;
