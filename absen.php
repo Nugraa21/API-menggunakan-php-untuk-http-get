@@ -106,7 +106,6 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         exit;
     }
 
-    // Validasi jam masuk & pulang (menggunakan waktu PHP yang sudah WIB)
     $currentHour = (int)date('H');
     $currentMinute = (int)date('i');
     $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
