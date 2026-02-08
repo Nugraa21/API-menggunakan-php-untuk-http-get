@@ -28,21 +28,37 @@ if (!$conn) {
     exit;
 }
 
-// Fungsi Validate API Key - STRICT JSON ONLY (No HTML)
+// Fungsi Validate API Key - Hybrid (JSON / HTML Form)
 function validateApiKey()
 {
     $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $key = $headers['X-App-Key'] ?? $_SERVER['HTTP_X_APP_KEY'] ?? '';
 
-    // Jika API Key Salah -> Return JSON Error (Encrypted version behavior, but cleaner)
-    if ($key !== API_SECRET_KEY) {
-        http_response_code(401);
-        echo json_encode([
-            "status" => false,
-            "message" => "Unauthorized: Invalid API Key"
-        ]);
-        exit;
+    // Cek key dari berbagai sumber: Header, POST, GET
+    $key = $headers['X-App-Key'] ?? $_SERVER['HTTP_X_APP_KEY'] ?? $_POST['x_app_key'] ?? $_GET['x_app_key'] ?? '';
+
+    // Jika API Key Valid -> Lanjut (Return)
+    if ($key === API_SECRET_KEY) {
+        return;
     }
+
+    // Jika Salah/Kosong -> Tampilkan Form HTML Sangat Sederhana
+    header('Content-Type: text/html; charset=UTF-8');
+    http_response_code(401);
+    ?>
+    <div style="font-family: monospace; text-align: center; margin-top: 50px;">
+        <h2>API Key Required</h2>
+        <?php if (!empty($key))
+            echo "<p style='color:red'>Key Salah!</p>"; ?>
+        <form method="POST">
+            <?php foreach ($_POST as $k => $v)
+                if ($k != 'x_app_key')
+                    echo "<input type='hidden' name='$k' value='$v'>"; ?>
+            <input type="text" name="x_app_key" placeholder="Masukkan Key..." required style="padding: 5px;">
+            <button type="submit" style="padding: 5px;">Submit</button>
+        </form>
+    </div>
+    <?php
+    exit;
 }
 
 function randomDelay()
