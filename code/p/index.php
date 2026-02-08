@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backend API - Testing Interface</title>
+    <title>Backend API - Testing Interface (Encrypted)</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -140,16 +140,16 @@
     <div class="container">
         <header>
             <h1>API Testing Interface</h1>
-            <p class="subtitle">Versi Tanpa Enkripsi (Clean Version)</p>
+            <p class="subtitle">Versi Enkripsi (Secure Version)</p>
             <div
-                style="margin-top: 10px; padding: 10px; background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 6px;">
-                <strong>NEW:</strong> <a href="p/" style="color: #0284c7; text-decoration: none; font-weight: bold;">Ke
-                    Folder /p/ (Versi Enkripsi & Secure) &rarr;</a>
-                <p style="margin: 5px 0 0; font-size: 0.85rem; color: #0369a1;">Endpoint di folder /p/ mengembalikan
-                    respons JSON terenkripsi penuh tanpa output HTML.</p>
+                style="margin-top: 10px; padding: 10px; background: #fef9c3; border: 1px solid #fde047; border-radius: 6px;">
+                <strong>INFO:</strong> <a href="../index.php"
+                    style="color: #ca8a04; text-decoration: none; font-weight: bold;">&larr; Kembali ke Root (Versi
+                    Clean)</a>
+                <p style="margin: 5px 0 0; font-size: 0.85rem; color: #854d0e;">Semua endpoint di sini memerlukan API
+                    Key dan mengembalikan respons terenkripsi.</p>
             </div>
         </header>
-
 
         <!-- Auth Section -->
         <div class="section">
@@ -158,22 +158,22 @@
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                Autentikasi
+                Autentikasi (Encrypted)
             </div>
             <ul class="item-list">
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="login.php" class="link">login.php</a>
+                    <a href="login.php" class="link" target="_blank">login.php</a>
                     <span class="desc">Login User</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="register.php" class="link">register.php</a>
+                    <a href="register.php" class="link" target="_blank">register.php</a>
                     <span class="desc">Register User</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="update_password.php" class="link">update_password.php</a>
+                    <a href="update_password.php" class="link" target="_blank">update_password.php</a>
                     <span class="desc">Update Password</span>
                 </li>
             </ul>
@@ -188,17 +188,17 @@
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-                Presensi & Absensi
+                Presensi & Absensi (Encrypted)
             </div>
             <ul class="item-list">
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="absen.php" class="link">absen.php</a>
+                    <a href="absen.php" class="link" target="_blank">absen.php</a>
                     <span class="desc">Input Absen (Masuk/Pulang)</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="presensi_add.php" class="link">presensi_add.php</a>
+                    <a href="presensi_add.php" class="link" target="_blank">presensi_add.php</a>
                     <span class="desc">Input Manual (Legacy)</span>
                 </li>
             </ul>
@@ -212,33 +212,34 @@
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
-                Data & Laporan
+                Data & Laporan (Encrypted)
             </div>
             <ul class="item-list">
                 <li class="item">
                     <span class="method get">GET</span>
-                    <a href="get_users.php" class="link">get_users.php</a>
+                    <a href="get_users.php" class="link" target="_blank">get_users.php</a>
                     <span class="desc">List Semua User</span>
                 </li>
                 <li class="item">
                     <span class="method get">GET</span>
-                    <a href="absen_admin_list.php" class="link">absen_admin_list.php</a>
+                    <a href="absen_admin_list.php" class="link" target="_blank">absen_admin_list.php</a>
                     <span class="desc">Data Semua Absensi</span>
                 </li>
                 <li class="item">
                     <span class="method get">GET</span>
                     <a href="presensi_rekap.php?month=<?php echo date('m'); ?>&year=<?php echo date('Y'); ?>"
-                        class="link">presensi_rekap.php</a>
+                        class="link" target="_blank">presensi_rekap.php</a>
                     <span class="desc">Rekap Bulanan</span>
                 </li>
                 <li class="item">
                     <span class="method get">GET</span>
-                    <a href="absen_history.php?user_id=1" class="link">absen_history.php</a>
+                    <a href="absen_history.php?user_id=1" class="link" target="_blank">absen_history.php</a>
                     <span class="desc">History Absen (By User ID)</span>
                 </li>
                 <li class="item">
                     <span class="method get">GET</span>
-                    <a href="presensi_user_history.php?user_id=1" class="link">presensi_user_history.php</a>
+                    <a href="presensi_user_history.php?user_id=1" class="link"
+                        target="_blank">presensi_user_history.php</a>
                     <span class="desc">History Detail (By User ID)</span>
                 </li>
             </ul>
@@ -252,63 +253,33 @@
                         d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
                     </path>
                 </svg>
-                Manajemen
+                Manajemen (Encrypted)
             </div>
             <ul class="item-list">
                 <li class="item">
                     <span class="method get">GET</span>
-                    <a href="presensi_pending.php" class="link">presensi_pending.php</a>
+                    <a href="presensi_pending.php" class="link" target="_blank">presensi_pending.php</a>
                     <span class="desc">List Pending Approval</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="presensi_approve.php" class="link">presensi_approve.php</a>
+                    <a href="presensi_approve.php" class="link" target="_blank">presensi_approve.php</a>
                     <span class="desc">Approve/Reject (presensi_approve)</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="absen_approve.php" class="link">absen_approve.php</a>
+                    <a href="absen_approve.php" class="link" target="_blank">absen_approve.php</a>
                     <span class="desc">Approve/Reject (absen_approve)</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="update_user.php" class="link">update_user.php</a>
+                    <a href="update_user.php" class="link" target="_blank">update_user.php</a>
                     <span class="desc">Edit User</span>
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="delete_user.php" class="link">delete_user.php</a>
+                    <a href="delete_user.php" class="link" target="_blank">delete_user.php</a>
                     <span class="desc">Hapus User</span>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Tools Section -->
-        <div class="section">
-            <div class="section-header">
-                <svg class="icon" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path
-                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                    </path>
-                </svg>
-                Tools
-            </div>
-            <ul class="item-list">
-                <li class="item">
-                    <span class="method get">GET</span>
-                    <a href="config.php" class="link">config.php</a>
-                    <span class="desc">Cek Config DB</span>
-                </li>
-                <li class="item">
-                    <span class="method get">GET</span>
-                    <a href="pw.php" class="link">pw.php</a>
-                    <span class="desc">Password Hash Test</span>
-                </li>
-                <li class="item">
-                    <span class="method post">POST</span>
-                    <a href="absen.linu.php" class="link">absen.linu.php</a>
-                    <span class="desc">Absen (Linux Version)</span>
                 </li>
             </ul>
         </div>
