@@ -168,11 +168,6 @@
                 </li>
                 <li class="item">
                     <span class="method post">POST</span>
-                    <a href="register.php" class="link" target="_blank">register.php</a>
-                    <span class="desc">Register User</span>
-                </li>
-                <li class="item">
-                    <span class="method post">POST</span>
                     <a href="update_password.php" class="link" target="_blank">update_password.php</a>
                     <span class="desc">Update Password</span>
                 </li>

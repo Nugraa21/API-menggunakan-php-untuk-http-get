@@ -15,29 +15,31 @@ $sekolah_lat = -7.7771639173358516;
 $sekolah_lng = 110.36716347232226;
 $max_distance = 12000000000000; // meter
 
-function calculateDistance($lat1, $lon1, $lat2, $lon2) {
+function calculateDistance($lat1, $lon1, $lat2, $lon2)
+{
     $earth_radius = 6371000;
     $dLat = deg2rad($lat2 - $lat1);
     $dLon = deg2rad($lon2 - $lon1);
-    $a = sin($dLat/2) * sin($dLat/2) +
-         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-         sin($dLon/2) * sin($dLon/2);
-    $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+    $a = sin($dLat / 2) * sin($dLat / 2) +
+        cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+        sin($dLon / 2) * sin($dLon / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
     return $earth_radius * $c;
 }
 
 $raw = file_get_contents('php://input');
 $input = json_decode($raw, true);
-if (!$input) $input = $_POST;
+if (!$input)
+    $input = $_POST;
 
-$userId     = sanitizeInput($input['userId'] ?? $input['user_id'] ?? '');
-$jenis      = sanitizeInput($input['jenis'] ?? '');
+$userId = sanitizeInput($input['userId'] ?? $input['user_id'] ?? '');
+$jenis = sanitizeInput($input['jenis'] ?? '');
 $keterangan = sanitizeInput($input['keterangan'] ?? '');
-$informasi  = sanitizeInput($input['informasi'] ?? '');
-$dokumen64  = $input['dokumenBase64'] ?? '';
-$lat        = floatval($input['latitude'] ?? 0);
-$lng        = floatval($input['longitude'] ?? 0);
-$selfie64   = $input['base64Image'] ?? '';
+$informasi = sanitizeInput($input['informasi'] ?? '');
+$dokumen64 = $input['dokumenBase64'] ?? '';
+$lat = floatval($input['latitude'] ?? 0);
+$lng = floatval($input['longitude'] ?? 0);
+$selfie64 = $input['base64Image'] ?? '';
 
 // Validasi dasar
 if (empty($userId) || empty($jenis)) {
@@ -106,38 +108,44 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         exit;
     }
 
-    // $currentHour = (int)date('H');
-    // $currentMinute = (int)date('i');
-    // $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
+    $currentHour = (int) date('H');
+    $currentMinute = (int) date('i');
+    $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
 
-    // if ($jenis == 'Masuk') {
-    //     if ($currentTimeInMinutes > 540) { // setelah 09:00
-    //         echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
-    //         exit;
-    //     }
-    // }
+    if ($jenis == 'Masuk') {
+        if ($currentTimeInMinutes > 540) { // setelah 09:00
+            echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
+            exit;
+        }
+    }
 
-    // if ($jenis == 'Pulang') {
-    //     if ($currentTimeInMinutes < 780) { // sebelum 13:00
-    //         echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
-    //         exit;
-    //     }
-    // }
+    if ($jenis == 'Pulang') {
+        if ($currentTimeInMinutes < 780) { // sebelum 13:00
+            echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
+            exit;
+        }
+    }
 }
 
 // Status otomatis disetujui untuk Masuk & Pulang
-$status = in_array($jenis, ['Masuk', 'Pulang']) ? 'Disetujui' : 'Waiting';
-
 // Upload selfie & dokumen
 $selfie_name = '';
 if (!empty($selfie64)) {
     $selfie_dir = "selfie/";
-    if (!is_dir($selfie_dir)) mkdir($selfie_dir, 0777, true);
+    if (!file_exists($selfie_dir)) {
+        mkdir($selfie_dir, 0777, true);
+    }
+
     $selfie_name = "selfie_" . $userId . "_" . time() . ".jpg";
     $selfie_path = $selfie_dir . $selfie_name;
+
+    // Clean base64 header
     $decoded = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $selfie64));
+
     if ($decoded === false || file_put_contents($selfie_path, $decoded) === false) {
-        echo json_encode(["status" => false, "message" => "Gagal simpan selfie"]);
+        // Log error jika gagal simpan
+        error_log("Gagal simpan selfie ke $selfie_path");
+        echo json_encode(["status" => false, "message" => "Gagal simpan file selfie di server"]);
         exit;
     }
 }
@@ -145,13 +153,27 @@ if (!empty($selfie64)) {
 $dokumen_name = '';
 if (!empty($dokumen64)) {
     $dokumen_dir = "dokumen/";
-    if (!is_dir($dokumen_dir)) mkdir($dokumen_dir, 0777, true);
-    $prefix = strpos($dokumen64, 'data:image') === 0 ? 'jpg' : 'pdf';
+    if (!file_exists($dokumen_dir)) {
+        mkdir($dokumen_dir, 0777, true);
+    }
+
+    // Deteksi tipe file sederhana
+    $prefix = 'jpg';
+    if (strpos($dokumen64, 'application/pdf') !== false) {
+        $prefix = 'pdf';
+    } else if (strpos($dokumen64, 'image/png') !== false) {
+        $prefix = 'png';
+    }
+
     $dokumen_name = "dokumen_" . $userId . "_" . time() . "." . $prefix;
     $dokumen_path = $dokumen_dir . $dokumen_name;
-    $decoded = base64_decode(preg_replace('#^data:\w+/\w+;base64,#i', '', $dokumen64));
+
+    // Clean base64 header (generic regex for image/pdf)
+    $decoded = base64_decode(preg_replace('#^data:[\w/]+;base64,#i', '', $dokumen64));
+
     if ($decoded === false || file_put_contents($dokumen_path, $decoded) === false) {
-        echo json_encode(["status" => false, "message" => "Gagal simpan dokumen"]);
+        error_log("Gagal simpan dokumen ke $dokumen_path");
+        echo json_encode(["status" => false, "message" => "Gagal simpan file dokumen di server"]);
         exit;
     }
 }
@@ -160,7 +182,7 @@ if (!empty($dokumen64)) {
 $stmt = $conn->prepare("INSERT INTO absensi 
     (user_id, jenis, keterangan, informasi, dokumen, selfie, latitude, longitude, status) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("isssssdss", $userId, $jenis, $keterangan, $informasi, $dokumen_name, $selfie_name, $lat, $lng, $status);
+$stmt->bind_param("isssssdds", $userId, $jenis, $keterangan, $informasi, $dokumen_name, $selfie_name, $lat, $lng, $status);
 
 if ($stmt->execute()) {
     $jarak_str = in_array($jenis, ['Masuk', 'Pulang']) ? round(calculateDistance($sekolah_lat, $sekolah_lng, $lat, $lng), 1) . "m" : null;
@@ -175,8 +197,10 @@ if ($stmt->execute()) {
     ]);
 } else {
     // Hapus file jika gagal insert
-    if ($selfie_name && file_exists("selfie/$selfie_name")) unlink("selfie/$selfie_name");
-    if ($dokumen_name && file_exists("dokumen/$dokumen_name")) unlink("dokumen/$dokumen_name");
+    if ($selfie_name && file_exists("selfie/$selfie_name"))
+        unlink("selfie/$selfie_name");
+    if ($dokumen_name && file_exists("dokumen/$dokumen_name"))
+        unlink("dokumen/$dokumen_name");
     echo json_encode(["status" => false, "message" => "Gagal simpan presensi: " . $stmt->error]);
 }
 

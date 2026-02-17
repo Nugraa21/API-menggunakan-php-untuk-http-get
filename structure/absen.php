@@ -106,23 +106,23 @@ if (in_array($jenis, ['Masuk', 'Pulang'])) {
         exit;
     }
 
-    // $currentHour = (int)date('H');
-    // $currentMinute = (int)date('i');
-    // $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
+    $currentHour = (int)date('H');
+    $currentMinute = (int)date('i');
+    $currentTimeInMinutes = $currentHour * 60 + $currentMinute;
 
-    // if ($jenis == 'Masuk') {
-    //     if ($currentTimeInMinutes > 540) { // setelah 09:00
-    //         echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
-    //         exit;
-    //     }
-    // }
+    if ($jenis == 'Masuk') {
+        if ($currentTimeInMinutes > 540) { // setelah 09:00
+            echo json_encode(["status" => false, "message" => "Absen masuk ditutup setelah jam 09:00!"]);
+            exit;
+        }
+    }
 
-    // if ($jenis == 'Pulang') {
-    //     if ($currentTimeInMinutes < 780) { // sebelum 13:00
-    //         echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
-    //         exit;
-    //     }
-    // }
+    if ($jenis == 'Pulang') {
+        if ($currentTimeInMinutes < 780) { // sebelum 13:00
+            echo json_encode(["status" => false, "message" => "Absen pulang baru dibuka mulai jam 13:00!"]);
+            exit;
+        }
+    }
 }
 
 // Status otomatis disetujui untuk Masuk & Pulang
