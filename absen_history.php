@@ -1,25 +1,52 @@
 <?php
+// absen_history.php - ENCRYPTED (POST preferred)
 error_reporting(0);
 ini_set('display_errors', 0);
 include "config.php";
+include "encryption.php";
+
 randomDelay();
 validateApiKey();
-include "encryption.php";
+
 header('Content-Type: application/json');
 
-$user_id = $_GET['user_id'] ?? '';
+// --- DECRYPT INPUT ---
+$raw = file_get_contents('php://input');
+$input_json = json_decode($raw, true);
+
+$data = [];
+if (isset($input_json['encrypted_data'])) {
+    $decrypted = Encryption::decrypt($input_json['encrypted_data']);
+    $data = $decrypted ? json_decode($decrypted, true) : [];
+} else {
+    // Support GET/POST fallback (unencrypted)
+    $data = array_merge($_GET, $_POST, $input_json ?? []);
+}
+// ---------------------
+
+$user_id = $data['user_id'] ?? '';
+
 if (empty($user_id)) {
-    echo json_encode(["status" => false, "message" => "user_id required"]);
+    $response = ["status" => false, "message" => "user_id required"];
+    echo json_encode(["encrypted_data" => Encryption::encrypt(json_encode($response))]);
     exit;
 }
 
-$q = $conn->query("SELECT * FROM absensi WHERE user_id='$user_id' ORDER BY id DESC");
-$data = [];
-while ($r = $q->fetch_assoc()) $data[] = $r;
+$stmt = $conn->prepare("SELECT * FROM absensi WHERE user_id = ? ORDER BY id DESC");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
 
-$response = ["status" => true, "data" => $data];
+$history_data = [];
+while ($r = $result->fetch_assoc())
+    $history_data[] = $r;
+
+$response = ["status" => true, "data" => $history_data];
 $json = json_encode($response, JSON_UNESCAPED_UNICODE);
 $encrypted = Encryption::encrypt($json);
 
 echo json_encode(["encrypted_data" => $encrypted]);
+
+$stmt->close();
+$conn->close();
 ?>

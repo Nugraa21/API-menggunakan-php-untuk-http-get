@@ -1,22 +1,32 @@
 <?php
+// absen_admin_list.php - ENCRYPTED
 error_reporting(0);
 ini_set('display_errors', 0);
 
 include "config.php";
+include "encryption.php";
+
 randomDelay();
 validateApiKey();
-include "encryption.php";
 
 header('Content-Type: application/json');
 
-// Baca method request
+// --- DECRYPT INPUT ---
+$raw = file_get_contents('php://input');
+$input_json = json_decode($raw, true);
+
+$input = [];
+if (isset($input_json['encrypted_data'])) {
+    $decrypted = Encryption::decrypt($input_json['encrypted_data']);
+    $input = $decrypted ? json_decode($decrypted, true) : [];
+} else {
+    $input = $input_json ?? [];
+}
+// ---------------------
+
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Baca input POST kalau ada
-$postData = file_get_contents("php://input");
-$input = json_decode($postData, true);
-
-// KALAU POST + action delete → HAPUS ABSENSI
+// Handle POST specific actions (Delete)
 if ($method === 'POST' && isset($input['action']) && $input['action'] === 'delete' && !empty($input['id'])) {
     $id = mysqli_real_escape_string($conn, trim($input['id']));
 
@@ -24,7 +34,7 @@ if ($method === 'POST' && isset($input['action']) && $input['action'] === 'delet
     $check = mysqli_query($conn, "SELECT id, selfie, dokumen FROM absensi WHERE id = '$id'");
     if (mysqli_num_rows($check) == 0) {
         http_response_code(404);
-        echo json_encode(["status" => false, "message" => "Absensi tidak ditemukan"]);
+        echo json_encode(["encrypted_data" => Encryption::encrypt(json_encode(["status" => false, "message" => "Absensi tidak ditemukan"]))]);
         exit;
     }
 
@@ -33,28 +43,30 @@ if ($method === 'POST' && isset($input['action']) && $input['action'] === 'delet
     // Hapus file selfie
     if (!empty($row['selfie'])) {
         $selfiePath = "../selfie/" . basename($row['selfie']);
-        if (file_exists($selfiePath)) @unlink($selfiePath);
+        if (file_exists($selfiePath))
+            @unlink($selfiePath);
     }
 
     // Hapus file dokumen
     if (!empty($row['dokumen'])) {
         $dokumenPath = "../dokumen/" . basename($row['dokumen']);
-        if (file_exists($dokumenPath)) @unlink($dokumenPath);
+        if (file_exists($dokumenPath))
+            @unlink($dokumenPath);
     }
 
     // Hapus dari database
     $delete = mysqli_query($conn, "DELETE FROM absensi WHERE id = '$id'");
 
     if ($delete) {
-        echo json_encode(["status" => true, "message" => "Absensi berhasil dihapus"]);
+        echo json_encode(["encrypted_data" => Encryption::encrypt(json_encode(["status" => true, "message" => "Absensi berhasil dihapus"]))]);
     } else {
         http_response_code(500);
-        echo json_encode(["status" => false, "message" => "Gagal menghapus absensi"]);
+        echo json_encode(["encrypted_data" => Encryption::encrypt(json_encode(["status" => false, "message" => "Gagal menghapus absensi"]))]);
     }
     exit;
 }
 
-// KALAU GET → TAMPILKAN SEMUA DATA ABSENSI (default)
+// KALAU GET / POST tanpa action delete → TAMPILKAN SEMUA DATA ABSENSI (default)
 $q = $conn->query("
     SELECT 
         a.id,
@@ -76,7 +88,7 @@ $q = $conn->query("
 
 if (!$q) {
     http_response_code(500);
-    echo json_encode(["status" => false, "message" => "Query gagal"]);
+    echo json_encode(["encrypted_data" => Encryption::encrypt(json_encode(["status" => false, "message" => "Query gagal"]))]);
     exit;
 }
 
@@ -87,7 +99,7 @@ while ($r = $q->fetch_assoc()) {
 
 $response = [
     "status" => true,
-    "data"   => $data
+    "data" => $data
 ];
 
 $json = json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

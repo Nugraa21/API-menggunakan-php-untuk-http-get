@@ -1,29 +1,26 @@
 <?php
+// delete_user.php - ENCRYPTED
 include "config.php";
-header('Content-Type: application/json');
-ini_set('display_errors', 0);
+require_once "encryption.php";
 
-// Ambil ID dari body JSON atau POST
-$input = json_decode(file_get_contents('php://input'), true);
-$id = $input['id'] ?? $_POST['id'] ?? '';
+header('Content-Type: application/json');
+
+// --- DECRYPT INPUT ---
+$raw = file_get_contents('php://input');
+$input_json = json_decode($raw, true);
+$data = [];
+if (isset($input_json['encrypted_data'])) {
+    $decrypted = Encryption::decrypt($input_json['encrypted_data']);
+    $data = $decrypted ? json_decode($decrypted, true) : [];
+} else {
+    $data = array_merge($_GET, $_POST, $input_json ?? []);
+}
+// ---------------------
+
+$id = $data["id"] ?? '';
+$response = [];
 
 if (empty($id)) {
-    echo json_encode(["status" => "error", "message" => "ID kosong"]);
-    exit;
-}
-
-// Cek user yang mau dihapus
-$cek = mysqli_query($conn, "SELECT role FROM users WHERE id = '$id'");
-if (mysqli_num_rows($cek) == 0) {
-    echo json_encode(["status" => "error", "message" => "User tidak ditemukan"]);
-    exit;
-}
-
-$user = mysqli_fetch_assoc($cek);
-
-// Tidak boleh hapus superadmin
-if ($user["role"] == "superadmin") {
-    echo json_encode(["status" => "error", "message" => "Tidak boleh menghapus akun superadmin"]);
     exit;
 }
 

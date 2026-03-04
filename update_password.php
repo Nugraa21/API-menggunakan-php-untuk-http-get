@@ -1,24 +1,44 @@
 <?php
-// <!-- update_user.php -->
+// update_password.php - ENCRYPTED
 include "config.php";
+require_once "encryption.php";
 
 header('Content-Type: application/json');
 ini_set('display_errors', 0);
 
-$id = $_POST["id"] ?? '';
-$password = $_POST["password"] ?? '';
+// --- DECRYPT INPUT ---
+$raw = file_get_contents('php://input');
+$input_json = json_decode($raw, true);
+
+$data = [];
+if (isset($input_json['encrypted_data'])) {
+    $decrypted = Encryption::decrypt($input_json['encrypted_data']);
+    $data = $decrypted ? json_decode($decrypted, true) : [];
+} else {
+    $data = array_merge($_POST, $input_json ?? []);
+}
+// ---------------------
+
+$id = $data["id"] ?? '';
+$password = $data["password"] ?? '';
+
+$response = [];
 
 if (empty($id) || empty($password)) {
-    echo json_encode(["status" => "error", "message" => "ID atau password kosong"]);
-    exit;
-}
-
-$hashed = password_hash($password, PASSWORD_DEFAULT);
-$update = mysqli_query($conn, "UPDATE users SET password='$hashed' WHERE id='$id'");
-
-if ($update) {
-    echo json_encode(["status" => "success", "message" => "Password diperbarui"]);
+    $response = ["status" => "error", "message" => "ID atau password kosong"];
 } else {
-    echo json_encode(["status" => "error", "message" => mysqli_error($conn)]);
+    $hashed = password_hash($password, PASSWORD_DEFAULT);
+    $update = mysqli_query($conn, "UPDATE users SET password='$hashed' WHERE id='$id'");
+
+    if ($update) {
+        $response = ["status" => "success", "message" => "Password diperbarui"];
+    } else {
+        $response = ["status" => "error", "message" => mysqli_error($conn)];
+    }
 }
+
+// --- ENCRYPT OUTPUT ---
+echo json_encode([
+    "encrypted_data" => Encryption::encrypt(json_encode($response))
+]);
 ?>

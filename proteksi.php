@@ -8,9 +8,8 @@ $allowed_direct_access = [
     'absen_history.php',
     'absen.php',
     'delete_user.php',
-    // 'encryption.php',        // Jika kamu pakai untuk decrypt di client-side (opsional, bisa dihapus kalau tidak perlu)
     'get_users.php',
-    'index.php',             // Jika ada halaman utama
+    'index.php',            
     'license.php',
     'login.php',
     'presensi_add.php',
